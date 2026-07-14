@@ -44,10 +44,14 @@ export default function App() {
   const activeQuestions = useMemo(() => activeSession?.questions ?? [], [activeSession])
 
   const handleCreateUser = async () => {
-    const user = await api.createUser(username)
-    setCreatedUser(user)
-    setMessage(`Created user ${user.username}`)
-    setUsername('')
+    try {
+      const user = await api.createUser(username.trim())
+      setCreatedUser(user)
+      setMessage(`Created user ${user.username}`)
+      setUsername('')
+    } catch (error) {
+      setMessage(error.message)
+    }
   }
 
   const handleLoadFirstSession = async () => {

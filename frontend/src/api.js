@@ -9,13 +9,17 @@ async function request(path, options = {}) {
     ...options,
   })
 
+  const data = await response.json().catch(() => null)
+
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`)
+    const message = data?.detail
+      ?? Object.values(data ?? {}).flat().join(' ')
+      ?? `Request failed: ${response.status}`
+    throw new Error(message || `Request failed: ${response.status}`)
   }
 
-  return response.json()
+  return data
 }
-
 export const api = {
   createUser: (username) => request('/users/', { method: 'POST', body: JSON.stringify({ username }) }),
   getLeaderboard: () => request('/leaderboard/'),
