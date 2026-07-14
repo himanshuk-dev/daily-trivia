@@ -116,3 +116,13 @@ Build a trivia app where users create usernames, a manually selected master choo
 - richer question formats.
 - analytics and engagement tracking.
 
+## Implementation Status
+- Complete: email-code registration, login, logout, authenticated identity, and initial platform-admin bootstrap.
+- Complete: platform-admin promotion, user invitations, user removal safeguards, and a dedicated admin dashboard area.
+- Complete: persistent teams, invite codes, optional approval, team-admin roles, membership approval/rejection/removal, and team selection.
+- Complete: team-scoped master cycles, trivia access, answers, trophies, leaderboard, history, and basic engagement analytics.
+- Complete: manual multiple-choice trivia creation, AI draft generation, draft editing, master approval/publishing, closing, evaluation, and trophy awards.
+- Complete: in-app notifications when team trivia is published.
+- Deferred beyond the confirmed multiple-choice MVP: additional question formats and advanced analytics visualizations.
+- External configuration required for production: SMTP credentials and an OpenAI API key. Local development uses console email and deterministic AI draft fallback.
+

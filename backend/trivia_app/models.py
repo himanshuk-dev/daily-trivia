@@ -1,5 +1,46 @@
+import secrets
+
 from django.conf import settings
 from django.db import models
+
+
+def generate_invite_code() -> str:
+    return secrets.token_urlsafe(6)
+
+
+class Team(models.Model):
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=140, unique=True)
+    invite_code = models.CharField(max_length=32, unique=True, default=generate_invite_code)
+    approval_required = models.BooleanField(default=False)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='created_teams')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TeamMembership(models.Model):
+    class Role(models.TextChoices):
+        MEMBER = 'member', 'Member'
+        TEAM_ADMIN = 'team_admin', 'Team Admin'
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='team_memberships')
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.MEMBER)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['team', 'user'], name='unique_team_membership'),
+        ]
 
 
 class MasterCycle(models.Model):
@@ -8,6 +49,7 @@ class MasterCycle(models.Model):
         ACTIVE = 'active', 'Active'
         CLOSED = 'closed', 'Closed'
 
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='master_cycles', null=True, blank=True)
     master = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='master_cycles')
     topic = models.CharField(max_length=200)
     start_date = models.DateField()
@@ -66,7 +108,7 @@ class UserAnswer(models.Model):
 
 class TrophyAward(models.Model):
     trivia_session = models.ForeignKey(TriviaSession, on_delete=models.CASCADE, related_name='trophy_awards')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='trophy_awards')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='trophy_awards')
     reason = models.CharField(max_length=255, default='Correct trivia answer')
     awarded_at = models.DateTimeField(auto_now_add=True)
 
@@ -81,6 +123,17 @@ class EmailLoginCode(models.Model):
     code_hash = models.CharField(max_length=128)
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class Notification(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='trivia_notifications')
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='notifications')
+    message = models.CharField(max_length=255)
+    read_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
