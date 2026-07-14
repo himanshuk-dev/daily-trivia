@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.db.models import Count
 from django.http import Http404
 from django.utils import timezone
@@ -36,6 +37,32 @@ def user_list_create(request):
     serializer.is_valid(raise_exception=True)
     user = User.objects.create_user(username=serializer.validated_data['username'])
     return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['DELETE'])
+def user_delete(request, pk: int):
+    try:
+        acting_user_id = int(request.data.get('acting_user_id', ''))
+    except (TypeError, ValueError):
+        return Response({'detail': 'An active user is required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    is_active_master = MasterCycle.objects.filter(
+        master_id=acting_user_id,
+        status=MasterCycle.Status.ACTIVE,
+    ).exists()
+    if not is_active_master:
+        return Response({'detail': 'Only an active master can remove users.'}, status=status.HTTP_403_FORBIDDEN)
+
+    user = get_object_or_404(User, pk=pk)
+    try:
+        user.delete()
+    except ProtectedError:
+        return Response(
+            {'detail': 'This user owns a master cycle and cannot be removed.'},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET', 'POST'])

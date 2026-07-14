@@ -21,7 +21,12 @@ async function request(path, options = {}) {
   return data
 }
 export const api = {
+  getUsers: () => request('/users/'),
   createUser: (username) => request('/users/', { method: 'POST', body: JSON.stringify({ username }) }),
+  deleteUser: (userId, actingUserId) => request(`/users/${userId}/`, {
+    method: 'DELETE',
+    body: JSON.stringify({ acting_user_id: actingUserId }),
+  }),
   getLeaderboard: () => request('/leaderboard/'),
   getMasterCycles: () => request('/master-cycles/'),
   createMasterCycle: (payload) => request('/master-cycles/', { method: 'POST', body: JSON.stringify(payload) }),

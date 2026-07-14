@@ -14,6 +14,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  MenuItem,
   Paper,
   Radio,
   RadioGroup,
@@ -26,29 +27,122 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import { api } from './api'
 
 const sampleChoices = ['Option A', 'Option B', 'Option C', 'Option D']
+const ACTIVE_USER_KEY = 'daily-trivia-active-user'
+
+function formatDate(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function addDays(dateString, days) {
+  const date = new Date(`${dateString}T00:00:00`)
+  date.setDate(date.getDate() + days)
+  return formatDate(date)
+}
+
+function loadActiveUser() {
+  try {
+    return JSON.parse(localStorage.getItem(ACTIVE_USER_KEY))
+  } catch {
+    localStorage.removeItem(ACTIVE_USER_KEY)
+    return null
+  }
+}
 
 export default function App() {
+  const today = useMemo(() => formatDate(new Date()), [])
   const [username, setUsername] = useState('')
-  const [createdUser, setCreatedUser] = useState(null)
+  const [managedUsername, setManagedUsername] = useState('')
+  const [createdUser, setCreatedUser] = useState(loadActiveUser)
+  const [users, setUsers] = useState([])
   const [leaderboard, setLeaderboard] = useState([])
   const [cycles, setCycles] = useState([])
+  const [masterCycle, setMasterCycle] = useState({
+    master_username: '',
+    topic: '',
+    start_date: today,
+    end_date: addDays(today, 13),
+  })
   const [activeSession, setActiveSession] = useState(null)
   const [selectedChoices, setSelectedChoices] = useState({})
   const [message, setMessage] = useState('')
 
   useEffect(() => {
+    api.getUsers().then(setUsers).catch(() => setUsers([]))
     api.getLeaderboard().then(setLeaderboard).catch(() => setLeaderboard([]))
     api.getMasterCycles().then(setCycles).catch(() => setCycles([]))
   }, [])
 
+  useEffect(() => {
+    if (createdUser && !masterCycle.master_username) {
+      setMasterCycle((current) => ({ ...current, master_username: createdUser.username }))
+    }
+  }, [createdUser, masterCycle.master_username])
+
   const activeQuestions = useMemo(() => activeSession?.questions ?? [], [activeSession])
+  const isActiveMaster = useMemo(
+    () => cycles.some((cycle) => cycle.status === 'active' && cycle.master_name === createdUser?.username),
+    [createdUser, cycles],
+  )
 
   const handleCreateUser = async () => {
     try {
       const user = await api.createUser(username.trim())
       setCreatedUser(user)
+      setUsers((current) => [...current, user].sort((a, b) => a.username.localeCompare(b.username)))
+      localStorage.setItem(ACTIVE_USER_KEY, JSON.stringify(user))
       setMessage(`Created user ${user.username}`)
       setUsername('')
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const handleClearUser = () => {
+    localStorage.removeItem(ACTIVE_USER_KEY)
+    setCreatedUser(null)
+    setMessage('Active user cleared from this browser.')
+  }
+
+  const handleSelectUser = (selectedUsername) => {
+    const user = users.find((candidate) => candidate.username === selectedUsername)
+    if (!user) return
+
+    localStorage.setItem(ACTIVE_USER_KEY, JSON.stringify(user))
+    setCreatedUser(user)
+    setMessage(`Welcome back, ${user.username}.`)
+  }
+
+  const handleCreateMasterCycle = async () => {
+    try {
+      const cycle = await api.createMasterCycle({ ...masterCycle, status: 'active' })
+      setCycles((current) => [cycle, ...current])
+      setMasterCycle((current) => ({ ...current, topic: '' }))
+      setMessage(`${cycle.master_name} is now the master for ${cycle.topic}.`)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const handleMasterAddUser = async () => {
+    try {
+      const user = await api.createUser(managedUsername.trim())
+      setUsers((current) => [...current, user].sort((a, b) => a.username.localeCompare(b.username)))
+      setManagedUsername('')
+      setMessage(`Added user ${user.username}.`)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const handleRemoveUser = async (user) => {
+    try {
+      await api.deleteUser(user.id, createdUser.id)
+      setUsers((current) => current.filter((candidate) => candidate.id !== user.id))
+      setLeaderboard((current) => current.filter((entry) => entry.user_id !== user.id))
+      setMessage(`Removed user ${user.username}.`)
     } catch (error) {
       setMessage(error.message)
     }
@@ -129,8 +223,24 @@ export default function App() {
                     <Button variant="contained" onClick={handleCreateUser} disabled={!username.trim()}>
                       Create user
                     </Button>
+                    <Divider>or</Divider>
+                    <TextField
+                      select
+                      label="Use existing user"
+                      value={createdUser?.username ?? ''}
+                      onChange={(event) => handleSelectUser(event.target.value)}
+                      disabled={users.length === 0}
+                      fullWidth
+                    >
+                      {users.map((user) => (
+                        <MenuItem key={user.id} value={user.username}>{user.username}</MenuItem>
+                      ))}
+                    </TextField>
                     {createdUser ? (
-                      <Chip label={`Active user: ${createdUser.username}`} color="success" />
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip label={`Active user: ${createdUser.username}`} color="success" />
+                        <Button size="small" onClick={handleClearUser}>Forget</Button>
+                      </Stack>
                     ) : null}
                   </Stack>
                 </CardContent>
@@ -146,7 +256,7 @@ export default function App() {
                   <List dense disablePadding>
                     {cycles.length === 0 ? (
                       <ListItem disableGutters>
-                        <ListItemText primary="No cycles yet" secondary="Create one from the backend admin flow." />
+                        <ListItemText primary="No cycles yet" secondary="Use the Add master form below." />
                       </ListItem>
                     ) : (
                       cycles.map((cycle) => (
@@ -197,6 +307,131 @@ export default function App() {
                 </CardContent>
               </Card>
             </Grid>
+
+            <Grid item xs={12}>
+              <Card sx={{ borderRadius: 4 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Add master
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Select an existing user to lead the next two-week trivia cycle.
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        select
+                        fullWidth
+                        label="Master"
+                        value={masterCycle.master_username}
+                        onChange={(event) => setMasterCycle((current) => ({ ...current, master_username: event.target.value }))}
+                        disabled={users.length === 0}
+                      >
+                        {users.map((user) => (
+                          <MenuItem key={user.id} value={user.username}>{user.username}</MenuItem>
+                        ))}
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        fullWidth
+                        label="Trivia topic"
+                        value={masterCycle.topic}
+                        onChange={(event) => setMasterCycle((current) => ({ ...current, topic: event.target.value }))}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <TextField
+                        fullWidth
+                        type="date"
+                        label="Start date"
+                        InputLabelProps={{ shrink: true }}
+                        value={masterCycle.start_date}
+                        onChange={(event) => setMasterCycle((current) => ({
+                          ...current,
+                          start_date: event.target.value,
+                          end_date: addDays(event.target.value, 13),
+                        }))}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <TextField
+                        fullWidth
+                        type="date"
+                        label="End date"
+                        InputLabelProps={{ shrink: true }}
+                        value={masterCycle.end_date}
+                        onChange={(event) => setMasterCycle((current) => ({ ...current, end_date: event.target.value }))}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        sx={{ height: '100%' }}
+                        onClick={handleCreateMasterCycle}
+                        disabled={!masterCycle.master_username || !masterCycle.topic.trim()}
+                      >
+                        Add master
+                      </Button>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {isActiveMaster ? (
+              <Grid item xs={12}>
+                <Card sx={{ borderRadius: 4 }}>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Manage users
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Active master tools for adding and removing trivia participants.
+                    </Typography>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
+                      <TextField
+                        label="New username"
+                        value={managedUsername}
+                        onChange={(event) => setManagedUsername(event.target.value)}
+                        fullWidth
+                      />
+                      <Button
+                        variant="contained"
+                        onClick={handleMasterAddUser}
+                        disabled={!managedUsername.trim()}
+                        sx={{ minWidth: 140 }}
+                      >
+                        Add user
+                      </Button>
+                    </Stack>
+                    <List disablePadding>
+                      {users.map((user) => (
+                        <ListItem
+                          key={user.id}
+                          disableGutters
+                          secondaryAction={(
+                            <Button
+                              color="error"
+                              onClick={() => handleRemoveUser(user)}
+                              disabled={user.id === createdUser.id}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        >
+                          <ListItemText
+                            primary={user.username}
+                            secondary={user.id === createdUser.id ? 'Current master' : null}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ) : null}
 
             <Grid item xs={12}>
               <Card sx={{ borderRadius: 4 }}>

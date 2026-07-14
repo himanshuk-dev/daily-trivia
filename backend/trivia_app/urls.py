@@ -8,12 +8,14 @@ from .views import (
     trivia_session_evaluate,
     trivia_session_publish,
     trivia_session_retrieve,
+    user_delete,
     user_list_create,
 )
 
 
 urlpatterns = [
     path('users/', user_list_create, name='user-list-create'),
+    path('users/<int:pk>/', user_delete, name='user-delete'),
     path('leaderboard/', leaderboard_view, name='leaderboard'),
     path('master-cycles/', master_cycle_list_create, name='master-cycle-list-create'),
     path('master-cycles/<int:pk>/generate-trivia/', master_cycle_generate_trivia, name='master-cycle-generate-trivia'),
