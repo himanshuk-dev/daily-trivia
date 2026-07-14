@@ -25,6 +25,7 @@ media/
 # Environment files
 .env
 .env.*
+!.env.example
 backend/.env
 frontend/.env
 
