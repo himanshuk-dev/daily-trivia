@@ -74,3 +74,14 @@ class TrophyAward(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['trivia_session', 'user'], name='unique_trophy_per_user_session'),
         ]
+
+
+class EmailLoginCode(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='email_login_codes')
+    code_hash = models.CharField(max_length=128)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']

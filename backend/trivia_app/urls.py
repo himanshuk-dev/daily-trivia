@@ -1,6 +1,10 @@
 from django.urls import path
 
 from .views import (
+    auth_logout,
+    auth_me,
+    auth_request_code,
+    auth_verify_code,
     leaderboard_view,
     master_cycle_generate_trivia,
     master_cycle_list_create,
@@ -14,6 +18,10 @@ from .views import (
 
 
 urlpatterns = [
+    path('auth/request-code/', auth_request_code, name='auth-request-code'),
+    path('auth/verify-code/', auth_verify_code, name='auth-verify-code'),
+    path('auth/me/', auth_me, name='auth-me'),
+    path('auth/logout/', auth_logout, name='auth-logout'),
     path('users/', user_list_create, name='user-list-create'),
     path('users/<int:pk>/', user_delete, name='user-delete'),
     path('leaderboard/', leaderboard_view, name='leaderboard'),

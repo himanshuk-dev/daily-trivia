@@ -27,7 +27,6 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import { api } from './api'
 
 const sampleChoices = ['Option A', 'Option B', 'Option C', 'Option D']
-const ACTIVE_USER_KEY = 'daily-trivia-active-user'
 
 function formatDate(date) {
   const year = date.getFullYear()
@@ -42,20 +41,17 @@ function addDays(dateString, days) {
   return formatDate(date)
 }
 
-function loadActiveUser() {
-  try {
-    return JSON.parse(localStorage.getItem(ACTIVE_USER_KEY))
-  } catch {
-    localStorage.removeItem(ACTIVE_USER_KEY)
-    return null
-  }
-}
-
 export default function App() {
   const today = useMemo(() => formatDate(new Date()), [])
-  const [username, setUsername] = useState('')
+  const [authMode, setAuthMode] = useState('login')
+  const [authStep, setAuthStep] = useState('request')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authUsername, setAuthUsername] = useState('')
+  const [authCode, setAuthCode] = useState('')
   const [managedUsername, setManagedUsername] = useState('')
-  const [createdUser, setCreatedUser] = useState(loadActiveUser)
+  const [managedEmail, setManagedEmail] = useState('')
+  const [createdUser, setCreatedUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [users, setUsers] = useState([])
   const [leaderboard, setLeaderboard] = useState([])
   const [cycles, setCycles] = useState([])
@@ -70,10 +66,23 @@ export default function App() {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
+    if (!api.hasToken()) {
+      setAuthLoading(false)
+      return
+    }
+
+    api.getMe()
+      .then(setCreatedUser)
+      .catch(() => api.clearToken())
+      .finally(() => setAuthLoading(false))
+  }, [])
+
+  useEffect(() => {
+    if (!createdUser) return
     api.getUsers().then(setUsers).catch(() => setUsers([]))
     api.getLeaderboard().then(setLeaderboard).catch(() => setLeaderboard([]))
     api.getMasterCycles().then(setCycles).catch(() => setCycles([]))
-  }, [])
+  }, [createdUser])
 
   useEffect(() => {
     if (createdUser && !masterCycle.master_username) {
@@ -87,32 +96,43 @@ export default function App() {
     [createdUser, cycles],
   )
 
-  const handleCreateUser = async () => {
+  const handleRequestCode = async () => {
     try {
-      const user = await api.createUser(username.trim())
-      setCreatedUser(user)
-      setUsers((current) => [...current, user].sort((a, b) => a.username.localeCompare(b.username)))
-      localStorage.setItem(ACTIVE_USER_KEY, JSON.stringify(user))
-      setMessage(`Created user ${user.username}`)
-      setUsername('')
+      await api.requestCode({
+        email: authEmail.trim(),
+        ...(authMode === 'register' ? { username: authUsername.trim() } : {}),
+      })
+      setAuthStep('verify')
+      setMessage(`A login code was sent to ${authEmail.trim()}.`)
     } catch (error) {
       setMessage(error.message)
     }
   }
 
-  const handleClearUser = () => {
-    localStorage.removeItem(ACTIVE_USER_KEY)
-    setCreatedUser(null)
-    setMessage('Active user cleared from this browser.')
+  const handleVerifyCode = async () => {
+    try {
+      const result = await api.verifyCode({ email: authEmail.trim(), code: authCode.trim() })
+      api.setToken(result.token)
+      setCreatedUser(result.user)
+      setAuthCode('')
+      setMessage(`Welcome, ${result.user.username}.`)
+    } catch (error) {
+      setMessage(error.message)
+    }
   }
 
-  const handleSelectUser = (selectedUsername) => {
-    const user = users.find((candidate) => candidate.username === selectedUsername)
-    if (!user) return
-
-    localStorage.setItem(ACTIVE_USER_KEY, JSON.stringify(user))
-    setCreatedUser(user)
-    setMessage(`Welcome back, ${user.username}.`)
+  const handleLogout = async () => {
+    try {
+      await api.logout()
+    } finally {
+      api.clearToken()
+      setCreatedUser(null)
+      setUsers([])
+      setCycles([])
+      setLeaderboard([])
+      setAuthStep('request')
+      setMessage('You have been logged out.')
+    }
   }
 
   const handleCreateMasterCycle = async () => {
@@ -128,10 +148,10 @@ export default function App() {
 
   const handleMasterAddUser = async () => {
     try {
-      const user = await api.createUser(managedUsername.trim())
-      setUsers((current) => [...current, user].sort((a, b) => a.username.localeCompare(b.username)))
+      await api.requestCode({ username: managedUsername.trim(), email: managedEmail.trim() })
       setManagedUsername('')
-      setMessage(`Added user ${user.username}.`)
+      setManagedEmail('')
+      setMessage(`Sent an account verification code to ${managedEmail.trim()}.`)
     } catch (error) {
       setMessage(error.message)
     }
@@ -139,13 +159,63 @@ export default function App() {
 
   const handleRemoveUser = async (user) => {
     try {
-      await api.deleteUser(user.id, createdUser.id)
+      await api.deleteUser(user.id)
       setUsers((current) => current.filter((candidate) => candidate.id !== user.id))
       setLeaderboard((current) => current.filter((entry) => entry.user_id !== user.id))
       setMessage(`Removed user ${user.username}.`)
     } catch (error) {
       setMessage(error.message)
     }
+  }
+
+  if (authLoading) {
+    return <Box sx={{ p: 4 }}><Typography>Loading…</Typography></Box>
+  }
+
+  if (!createdUser) {
+    return (
+      <>
+        <CssBaseline />
+        <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 2, background: '#0f172a' }}>
+          <Card sx={{ width: '100%', maxWidth: 480, borderRadius: 4 }}>
+            <CardContent sx={{ p: 4 }}>
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="h4" fontWeight={900}>Daily Trivia</Typography>
+                  <Typography color="text.secondary">Sign in securely with a one-time email code.</Typography>
+                </Box>
+                {message ? <Alert severity="info">{message}</Alert> : null}
+                {authStep === 'request' ? (
+                  <>
+                    <Stack direction="row" spacing={1}>
+                      <Button variant={authMode === 'login' ? 'contained' : 'outlined'} onClick={() => setAuthMode('login')}>Login</Button>
+                      <Button variant={authMode === 'register' ? 'contained' : 'outlined'} onClick={() => setAuthMode('register')}>Register</Button>
+                    </Stack>
+                    {authMode === 'register' ? (
+                      <TextField label="Username" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} />
+                    ) : null}
+                    <TextField label="Email" type="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} />
+                    <Button
+                      variant="contained"
+                      onClick={handleRequestCode}
+                      disabled={!authEmail.trim() || (authMode === 'register' && !authUsername.trim())}
+                    >
+                      Email me a code
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <TextField label="Six-digit code" value={authCode} onChange={(event) => setAuthCode(event.target.value)} inputProps={{ maxLength: 6 }} />
+                    <Button variant="contained" onClick={handleVerifyCode} disabled={authCode.trim().length !== 6}>Verify and continue</Button>
+                    <Button onClick={() => setAuthStep('request')}>Use a different email</Button>
+                  </>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Box>
+      </>
+    )
   }
 
   const handleLoadFirstSession = async () => {
@@ -211,37 +281,13 @@ export default function App() {
               <Card sx={{ borderRadius: 4 }}>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    Create username
+                    Your account
                   </Typography>
                   <Stack spacing={2}>
-                    <TextField
-                      label="Username"
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
-                      fullWidth
-                    />
-                    <Button variant="contained" onClick={handleCreateUser} disabled={!username.trim()}>
-                      Create user
-                    </Button>
-                    <Divider>or</Divider>
-                    <TextField
-                      select
-                      label="Use existing user"
-                      value={createdUser?.username ?? ''}
-                      onChange={(event) => handleSelectUser(event.target.value)}
-                      disabled={users.length === 0}
-                      fullWidth
-                    >
-                      {users.map((user) => (
-                        <MenuItem key={user.id} value={user.username}>{user.username}</MenuItem>
-                      ))}
-                    </TextField>
-                    {createdUser ? (
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Chip label={`Active user: ${createdUser.username}`} color="success" />
-                        <Button size="small" onClick={handleClearUser}>Forget</Button>
-                      </Stack>
-                    ) : null}
+                    <Chip label={`Signed in: ${createdUser.username}`} color="success" />
+                    <Typography variant="body2" color="text.secondary">{createdUser.email}</Typography>
+                    {createdUser.is_staff ? <Chip label="Platform admin" color="primary" /> : null}
+                    <Button variant="outlined" onClick={handleLogout}>Logout</Button>
                   </Stack>
                 </CardContent>
               </Card>
@@ -308,7 +354,7 @@ export default function App() {
               </Card>
             </Grid>
 
-            <Grid item xs={12}>
+            {createdUser.is_staff ? <Grid item xs={12}>
               <Card sx={{ borderRadius: 4 }}>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
@@ -378,7 +424,7 @@ export default function App() {
                   </Grid>
                 </CardContent>
               </Card>
-            </Grid>
+            </Grid> : null}
 
             {isActiveMaster ? (
               <Grid item xs={12}>
@@ -397,10 +443,17 @@ export default function App() {
                         onChange={(event) => setManagedUsername(event.target.value)}
                         fullWidth
                       />
+                      <TextField
+                        label="Email"
+                        type="email"
+                        value={managedEmail}
+                        onChange={(event) => setManagedEmail(event.target.value)}
+                        fullWidth
+                      />
                       <Button
                         variant="contained"
                         onClick={handleMasterAddUser}
-                        disabled={!managedUsername.trim()}
+                        disabled={!managedUsername.trim() || !managedEmail.trim()}
                         sx={{ minWidth: 140 }}
                       >
                         Add user

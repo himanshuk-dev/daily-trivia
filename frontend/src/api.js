@@ -1,9 +1,11 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api'
+const TOKEN_KEY = 'daily-trivia-auth-token'
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      ...(localStorage.getItem(TOKEN_KEY) ? { Authorization: `Token ${localStorage.getItem(TOKEN_KEY)}` } : {}),
       ...(options.headers ?? {}),
     },
     ...options,
@@ -21,11 +23,16 @@ async function request(path, options = {}) {
   return data
 }
 export const api = {
+  setToken: (token) => localStorage.setItem(TOKEN_KEY, token),
+  clearToken: () => localStorage.removeItem(TOKEN_KEY),
+  hasToken: () => Boolean(localStorage.getItem(TOKEN_KEY)),
+  requestCode: (payload) => request('/auth/request-code/', { method: 'POST', body: JSON.stringify(payload) }),
+  verifyCode: (payload) => request('/auth/verify-code/', { method: 'POST', body: JSON.stringify(payload) }),
+  getMe: () => request('/auth/me/'),
+  logout: () => request('/auth/logout/', { method: 'POST' }),
   getUsers: () => request('/users/'),
-  createUser: (username) => request('/users/', { method: 'POST', body: JSON.stringify({ username }) }),
-  deleteUser: (userId, actingUserId) => request(`/users/${userId}/`, {
+  deleteUser: (userId) => request(`/users/${userId}/`, {
     method: 'DELETE',
-    body: JSON.stringify({ acting_user_id: actingUserId }),
   }),
   getLeaderboard: () => request('/leaderboard/'),
   getMasterCycles: () => request('/master-cycles/'),

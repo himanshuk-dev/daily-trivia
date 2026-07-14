@@ -7,8 +7,8 @@ from .models import MasterCycle, TrophyAward, TriviaQuestion, TriviaSession, Use
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'date_joined']
-        read_only_fields = ['id', 'date_joined']
+        fields = ['id', 'username', 'email', 'is_staff', 'date_joined']
+        read_only_fields = ['id', 'is_staff', 'date_joined']
 
 
 class TriviaQuestionSerializer(serializers.ModelSerializer):

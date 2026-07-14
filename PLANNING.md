@@ -47,6 +47,44 @@ Build a trivia app where users create usernames, a manually selected master choo
 - The master is chosen manually.
 - Every user with a correct answer receives a trophy.
 - The app includes a public leaderboard.
+- Users register with a unique username and unique email address.
+- Authentication uses short-lived email one-time codes instead of passwords.
+- Authenticated identity must be enforced by the backend; a user cannot use another username.
+- Users can log in, log out, and access a personal account and team-management area.
+- The platform has a separate administration dashboard.
+- `himanshu.kumar@ssc-spc.gc.ca` is the initial platform administrator and can appoint other platform administrators.
+- The application supports multiple persistent teams, each with isolated memberships, trivia cycles, answers, trophies, and leaderboards.
+- Users join teams with invite codes. A team can either admit them immediately or require a team administrator's approval.
+- A trivia master is assigned for a specific team cycle.
+- Masters can create trivia manually or generate an AI draft, edit it, and publish it.
+
+## Authentication and Authorization
+- Registration collects username and email, then sends a time-limited one-time code to that email.
+- Successful code verification activates the account and creates an authenticated application session.
+- Login requests a new one-time code for an existing email address.
+- Logout invalidates the active application session.
+- Client-provided usernames or user IDs are never sufficient authorization; protected actions use the authenticated identity.
+- Development sends codes through Django's console email backend. Production email delivery is configured through environment variables.
+
+## Role Model
+- Platform Admin: manages platform users, teams, and other platform admins.
+- Team Admin: manages one team's settings, invite policy, membership requests, and members.
+- Master: creates, reviews, and publishes trivia for an assigned team cycle.
+- Member: participates in trivia for approved team memberships.
+
+## Team and Session Model
+- Team: id, name, slug, inviteCode, approvalRequired, createdBy, createdAt.
+- TeamMembership: id, teamId, userId, role, status, joinedAt, approvedAt.
+- MasterCycle belongs to one team and identifies that cycle's master.
+- TriviaSession, questions, answers, trophies, history, and leaderboard are scoped through the team cycle.
+- Pending memberships cannot access or answer team trivia until approved.
+
+## Application Areas
+- Registration, login-code verification, and logout.
+- User dashboard for profile, memberships, invitations, and available trivia.
+- Team administration for invite codes, members, and approval requests.
+- Master trivia builder for manual questions, AI drafts, editing, and publishing.
+- Platform administration dashboard for users, teams, and administrator roles.
 
 ## Key Rules
 - Usernames must be unique.
@@ -57,13 +95,17 @@ Build a trivia app where users create usernames, a manually selected master choo
 
 ## Delivery Plan
 ### Phase 1
-- User signup and identity.
+- Email-code signup, login, logout, and authenticated identity.
+- Initial platform administrator bootstrap.
 - Master cycle setup.
 - AI trivia generation.
 - Publish and answer flow.
 - Trophy awarding.
 
 ### Phase 2
+- Teams, invite codes, and optional membership approval.
+- User and team-management dashboards.
+- Platform administrator management.
 - Leaderboards.
 - Trivia history.
 - Master review tools.
