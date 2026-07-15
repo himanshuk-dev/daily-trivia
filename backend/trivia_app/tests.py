@@ -1,13 +1,17 @@
 import re
+from datetime import timedelta
+from unittest.mock import patch
 
 from django.core import mail
 from django.contrib.auth.models import User
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from trivia_app.models import TeamMembership
+from trivia_app.models import TeamMembership, TriviaSession
+from trivia_app.services.ai_generator import GeneratedQuestion
 
 
 @override_settings(
@@ -106,6 +110,41 @@ class TeamTriviaWorkflowTests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['master_name'], team_admin.username)
+        cycle_id = response.data['id']
+
+        generated = GeneratedQuestion(
+            prompt='What is the capital of Canada?',
+            choices=['Ottawa', 'Toronto', 'Vancouver', 'Montreal'],
+            correct_choice='Ottawa',
+            explanation='Ottawa is the capital of Canada.',
+        )
+        with patch('trivia_app.api.trivia.TriviaGenerator.generate', return_value=generated):
+            response = self.client.post(f'/api/master-cycles/{cycle_id}/generate-trivia/', format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['status'], TriviaSession.Status.LIVE)
+        self.assertEqual(len(response.data['questions']), 1)
+        self.assertIsNotNone(response.data['publish_at'])
+        self.assertIsNotNone(response.data['close_at'])
+
+        session = TriviaSession.objects.get(pk=response.data['id'])
+        self.assertAlmostEqual(
+            (session.close_at - session.publish_at).total_seconds(),
+            timedelta(hours=24).total_seconds(),
+            delta=1,
+        )
+        self.assertEqual(
+            self.client.post(f'/api/trivia-sessions/{session.id}/evaluate/').status_code,
+            status.HTTP_409_CONFLICT,
+        )
+
+        session.close_at = timezone.now() - timedelta(seconds=1)
+        session.save(update_fields=['close_at'])
+        self.authenticate(direct_member)
+        question_id = session.questions.get().id
+        self.assertEqual(self.client.post(f'/api/trivia-sessions/{session.id}/answers/', {
+            'trivia_question': question_id,
+            'selected_choice': 'Ottawa',
+        }, format='json').status_code, status.HTTP_409_CONFLICT)
 
     def test_team_approval_manual_trivia_and_team_leaderboard(self):
         self.authenticate(self.admin)

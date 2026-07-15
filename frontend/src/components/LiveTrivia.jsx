@@ -9,7 +9,11 @@ export function LiveTrivia({ session, questions, choices, setChoices, canManage,
         <Typography variant="h6" gutterBottom>Live trivia session</Typography>
         {!session ? <Typography color="text.secondary">Load a trivia session to preview and answer it.</Typography> : (
           <Stack spacing={3}>
-            <Box><Typography variant="h5" fontWeight={800}>{session.title}</Typography><Typography color="text.secondary">Topic: {session.topic}</Typography></Box>
+            <Box>
+              <Typography variant="h5" fontWeight={800}>{session.title}</Typography>
+              <Typography color="text.secondary">Topic: {session.topic}</Typography>
+              {session.status === 'live' && session.close_at ? <Typography color="warning.dark" fontWeight={800}>Answers close {new Date(session.close_at).toLocaleString()}</Typography> : null}
+            </Box>
             {questions.map((question, index) => (
               <Paper key={question.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
                 <Typography fontWeight={700} gutterBottom>Q{index + 1}. {question.prompt}</Typography>

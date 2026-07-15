@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Count, Q
@@ -50,23 +52,39 @@ def master_cycle_generate_trivia(request, pk: int):
     cycle = get_object_or_404(MasterCycle, pk=pk)
     if not can_manage_cycle(request.user, cycle):
         return Response({'detail': "Only this cycle's master can generate trivia."}, status=status.HTTP_403_FORBIDDEN)
-    question_count = int(request.data.get('question_count', 5))
-    title = request.data.get('title') or f'{cycle.topic} Trivia'
+    title = request.data.get('title') or f'{cycle.topic} Daily Challenge'
     try:
-        generated_questions = TriviaGenerator().generate(cycle.topic, question_count=question_count)
+        question = TriviaGenerator().generate(cycle.topic)
     except Exception as exc:
         return Response({'detail': f'Trivia generation failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
 
-    session = TriviaSession.objects.create(master_cycle=cycle, title=title, topic=cycle.topic)
-    for order, question in enumerate(generated_questions, start=1):
+    publish_at = timezone.now()
+    with transaction.atomic():
+        session = TriviaSession.objects.create(
+            master_cycle=cycle,
+            title=title,
+            topic=cycle.topic,
+            status=TriviaSession.Status.LIVE,
+            publish_at=publish_at,
+            close_at=publish_at + timedelta(hours=24),
+        )
         TriviaQuestion.objects.create(
             trivia_session=session,
             prompt=question.prompt,
             choices=question.choices,
             correct_choice=question.correct_choice,
             explanation=question.explanation,
-            sort_order=order,
+            sort_order=1,
         )
+        if cycle.team:
+            member_ids = TeamMembership.objects.filter(
+                team=cycle.team,
+                status=TeamMembership.Status.APPROVED,
+            ).exclude(user=request.user).values_list('user_id', flat=True)
+            Notification.objects.bulk_create([
+                Notification(user_id=user_id, team=cycle.team, message=f'New 24-hour trivia is live: {session.title}')
+                for user_id in member_ids
+            ])
     return Response(TriviaSessionSerializer(session).data, status=status.HTTP_201_CREATED)
 
 
@@ -154,6 +172,8 @@ def trivia_session_answers(request, pk: int):
     session = get_object_or_404(TriviaSession, pk=pk)
     if session.status != TriviaSession.Status.LIVE:
         return Response({'detail': 'Answers are only accepted for live trivia.'}, status=status.HTTP_409_CONFLICT)
+    if session.close_at and timezone.now() >= session.close_at:
+        return Response({'detail': 'The 24-hour answer window has closed.'}, status=status.HTTP_409_CONFLICT)
     if session.master_cycle.team and not is_approved_member(request.user, session.master_cycle.team):
         return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
     serializer = UserAnswerSerializer(data={
@@ -183,6 +203,8 @@ def trivia_session_evaluate(request, pk: int):
     session = get_object_or_404(TriviaSession.objects.prefetch_related('questions', 'answers__user'), pk=pk)
     if not can_manage_cycle(request.user, session.master_cycle):
         return Response({'detail': "Only this cycle's master can evaluate trivia."}, status=status.HTTP_403_FORBIDDEN)
+    if session.close_at and timezone.now() < session.close_at:
+        return Response({'detail': 'This trivia can be evaluated after its 24-hour answer window closes.'}, status=status.HTTP_409_CONFLICT)
     correct_user_ids: list[int] = []
     with transaction.atomic():
         for answer in session.answers.select_related('user'):
@@ -198,8 +220,11 @@ def trivia_session_evaluate(request, pk: int):
                 )
     trophy_count = TrophyAward.objects.filter(trivia_session=session).count()
     session.status = TriviaSession.Status.CLOSED
-    session.close_at = timezone.now()
-    session.save(update_fields=['status', 'close_at'])
+    if session.close_at:
+        session.save(update_fields=['status'])
+    else:
+        session.close_at = timezone.now()
+        session.save(update_fields=['status', 'close_at'])
     return Response({'session_id': session.id, 'correct_users': correct_user_ids, 'trophies_awarded': trophy_count})
 
 

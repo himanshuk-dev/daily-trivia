@@ -320,15 +320,16 @@ export default function App() {
 
   const handleGenerateTrivia = async () => {
     try {
-      const session = await api.generateTrivia(builder.cycleId, { title: builder.title, question_count: 5 })
+      const session = await api.generateTrivia(builder.cycleId, { title: builder.title })
       setCycles(await api.getMasterCycles())
+      setActiveSession(session)
       setBuilder((current) => ({
         ...current,
         sessionId: String(session.id),
         title: session.title,
         questions: session.questions,
       }))
-      setMessage(`Generated AI draft: ${session.title}.`)
+      setMessage(`AI generated and published ${session.title}. The team has 24 hours to answer.`)
     } catch (error) {
       setMessage(error.message)
     }

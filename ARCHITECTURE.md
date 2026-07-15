@@ -24,7 +24,7 @@ The system is a conventional client/server application:
 - Django REST Framework exposes JSON endpoints under `/api/`.
 - PostgreSQL is the persistent system of record.
 - Django sends authentication codes through the console backend in development or SMTP in production.
-- The OpenAI integration is optional. A local generator keeps development usable without an API key.
+- OpenAI powers the one-question daily challenge and requires an API key; the application does not label placeholder content as AI-generated.
 
 ## 3. Repository layout
 
@@ -120,12 +120,9 @@ Authentication codes use Django's configured email backend:
 
 ### 4.5 AI generation
 
-`TriviaGenerator` has two execution paths:
+`TriviaGenerator` calls the OpenAI Responses API using `OPENAI_MODEL`. If `OPENAI_API_KEY` is missing, generation fails with a clear configuration error.
 
-1. If `OPENAI_API_KEY` exists, it calls the OpenAI Responses API using `OPENAI_MODEL`.
-2. Otherwise, it generates deterministic placeholder questions locally.
-
-The OpenAI prompt requests a JSON object containing a fixed number of questions. The service validates that every generated question has exactly four choices, that its correct answer occurs in those choices, and that the response contains the requested number of questions. Invalid AI output raises an error and becomes a `502` API response.
+The OpenAI prompt requests one JSON question. The service validates that it has four unique choices and that its correct answer occurs in those choices. Invalid AI output raises an error and becomes a `502` API response.
 
 ## 5. Data model
 
@@ -256,7 +253,7 @@ stateDiagram-v2
 A team administrator creates a `MasterCycle` and assigns an approved team member as master. The master can then:
 
 - Create a manual session with validated questions.
-- Ask the AI service to create a five-question draft.
+- Ask the AI service to create one question, publish it immediately, and set its deadline to 24 hours after publication.
 - Reload and replace the questions of an existing draft.
 
 ### Publication
@@ -267,7 +264,7 @@ Normal participants receive a public question representation containing only the
 
 ### Answer submission
 
-The API accepts answers only while the session is live and only from approved team members. It ignores any client-supplied user identity and always associates the answer with `request.user`. It also verifies that:
+The API accepts answers only while the session is live, before its deadline, and from approved team members. It ignores any client-supplied user identity and always associates the answer with `request.user`. It also verifies that:
 
 - The question belongs to the requested session.
 - The selected answer is one of the question's available choices.
