@@ -80,6 +80,7 @@ class TeamMembershipSerializer(serializers.ModelSerializer):
 
 
 class TeamSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
     membership_role = serializers.SerializerMethodField()
     membership_status = serializers.SerializerMethodField()
     member_count = serializers.SerializerMethodField()
@@ -87,10 +88,10 @@ class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = [
-            'id', 'name', 'slug', 'invite_code', 'approval_required', 'created_by', 'created_at',
+            'id', 'name', 'slug', 'invite_code', 'approval_required', 'created_by', 'created_by_username', 'created_at',
             'membership_role', 'membership_status', 'member_count',
         ]
-        read_only_fields = ['id', 'invite_code', 'created_by', 'created_at']
+        read_only_fields = ['id', 'invite_code', 'created_by', 'created_by_username', 'created_at']
 
     def _membership(self, obj):
         request = self.context.get('request')

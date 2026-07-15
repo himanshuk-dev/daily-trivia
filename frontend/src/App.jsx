@@ -62,7 +62,7 @@ export default function App() {
   const [teamMembers, setTeamMembers] = useState([])
   const [teamAnalytics, setTeamAnalytics] = useState(null)
   const [notifications, setNotifications] = useState([])
-  const [newTeam, setNewTeam] = useState({ name: '', approval_required: true })
+  const [newTeam, setNewTeam] = useState({ name: '', approval_required: true, initial_admin_id: '' })
   const [leaderboard, setLeaderboard] = useState([])
   const [cycles, setCycles] = useState([])
   const [masterCycle, setMasterCycle] = useState({
@@ -136,6 +136,10 @@ export default function App() {
   const selectedTeam = useMemo(
     () => teams.find((team) => String(team.id) === String(selectedTeamId)),
     [selectedTeamId, teams],
+  )
+  const selectedTeamCycles = useMemo(
+    () => cycles.filter((cycle) => String(cycle.team) === String(selectedTeamId)),
+    [cycles, selectedTeamId],
   )
   const canManageSelectedTeam = createdUser?.is_staff || selectedTeam?.membership_role === 'team_admin'
   const manageableCycles = useMemo(
@@ -221,8 +225,9 @@ export default function App() {
       const team = await api.createTeam(newTeam)
       setTeams((current) => [...current, team].sort((a, b) => a.name.localeCompare(b.name)))
       setSelectedTeamId(String(team.id))
-      setNewTeam({ name: '', approval_required: true })
-      setMessage(`Created team ${team.name}. Invite code: ${team.invite_code}`)
+      const assignedAdmin = users.find((user) => String(user.id) === String(newTeam.initial_admin_id))
+      setNewTeam({ name: '', approval_required: true, initial_admin_id: '' })
+      setMessage(`Created team ${team.name}${assignedAdmin ? ` with ${assignedAdmin.username} as team admin` : ''}. Invite code: ${team.invite_code}`)
     } catch (error) {
       setMessage(error.message)
     }
@@ -602,7 +607,7 @@ export default function App() {
                     >
                       {teams.map((team) => (
                         <MenuItem key={team.id} value={String(team.id)}>
-                          {team.name} ({team.membership_status})
+                          {team.name} ({team.approval_required ? 'approval required' : 'approved'})
                         </MenuItem>
                       ))}
                     </TextField>
@@ -610,8 +615,9 @@ export default function App() {
                     <Button variant="outlined" onClick={handleJoinTeam} disabled={!inviteCode.trim()} sx={{ minWidth: 120 }}>Join team</Button>
                   </Stack>
                   {selectedTeam ? (
-                    <Alert severity={selectedTeam.membership_status === 'approved' ? 'success' : 'warning'}>
+                    <Alert severity={selectedTeam.approval_required ? 'warning' : 'success'}>
                       {selectedTeam.name} · {selectedTeam.member_count} members
+                      {selectedTeam.approval_required ? ' · New members require approval' : ' · New members are approved immediately'}
                       {canManageSelectedTeam ? ` · Invite code: ${selectedTeam.invite_code}` : ''}
                     </Alert>
                   ) : <Typography color="text.secondary">Join a team to access its trivia.</Typography>}
@@ -628,6 +634,20 @@ export default function App() {
                       <TextField label="New team name" value={newTeam.name} onChange={(event) => setNewTeam((current) => ({ ...current, name: event.target.value }))} fullWidth />
                       <TextField
                         select
+                        label="Initial team admin"
+                        value={newTeam.initial_admin_id}
+                        onChange={(event) => setNewTeam((current) => ({ ...current, initial_admin_id: event.target.value }))}
+                        fullWidth
+                      >
+                        <MenuItem value="">Assign me</MenuItem>
+                        {users.map((user) => (
+                          <MenuItem key={user.id} value={String(user.id)}>
+                            {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username} ({user.username})
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
                         label="Membership approval"
                         value={String(newTeam.approval_required)}
                         onChange={(event) => setNewTeam((current) => ({ ...current, approval_required: event.target.value === 'true' }))}
@@ -638,6 +658,9 @@ export default function App() {
                       </TextField>
                       <Button variant="contained" onClick={handleCreateTeam} disabled={!newTeam.name.trim()} sx={{ minWidth: 140 }}>Create team</Button>
                     </Stack>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      The initial admin is approved automatically and can assign themselves or another approved member as trivia master.
+                    </Typography>
                     <Typography variant="subtitle2">Platform administrators</Typography>
                     <List dense>
                       {users.map((user) => (
@@ -659,29 +682,147 @@ export default function App() {
               <Grid item xs={12}>
                 <Card sx={{ borderRadius: 4 }}>
                   <CardContent>
-                    <Typography variant="h6" gutterBottom>Team administration</Typography>
+                    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6">Team administration</Typography>
+                        <Typography color="text.secondary">
+                          Review each team’s administrators, masters, members, admission policy, and activity.
+                        </Typography>
+                      </Box>
+                      {selectedTeam ? (
+                        <Chip
+                          color={selectedTeam.approval_required ? 'warning' : 'success'}
+                          label={selectedTeam.approval_required ? 'Approval required' : 'Immediate approval'}
+                        />
+                      ) : null}
+                    </Stack>
+
+                    {createdUser.is_staff ? (
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>All teams</Typography>
+                        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                          {teams.map((team) => (
+                            <Button
+                              key={team.id}
+                              size="small"
+                              variant={String(team.id) === String(selectedTeamId) ? 'contained' : 'outlined'}
+                              onClick={() => setSelectedTeamId(String(team.id))}
+                            >
+                              {team.name} · {team.member_count} members
+                            </Button>
+                          ))}
+                        </Stack>
+                      </Box>
+                    ) : null}
+
+                    {selectedTeam ? (
+                      <Paper variant="outlined" sx={{ p: 2.5, mb: 3, borderRadius: 3, bgcolor: '#fbf8ff' }}>
+                        <Grid container spacing={2}>
+                          <Grid item xs={12} sm={6} md={3}>
+                            <Typography variant="caption" color="text.secondary">Team</Typography>
+                            <Typography fontWeight={900}>{selectedTeam.name}</Typography>
+                            <Typography variant="body2" color="text.secondary">/{selectedTeam.slug}</Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={6} md={3}>
+                            <Typography variant="caption" color="text.secondary">Created by</Typography>
+                            <Typography fontWeight={800}>{selectedTeam.created_by_username || `User #${selectedTeam.created_by}`}</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {new Date(selectedTeam.created_at).toLocaleDateString()}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={6} md={3}>
+                            <Typography variant="caption" color="text.secondary">Invite code</Typography>
+                            <Typography fontWeight={900}>{selectedTeam.invite_code || 'Hidden'}</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {selectedTeam.approval_required ? 'Admin reviews new members' : 'Members join approved'}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={6} md={3}>
+                            <Typography variant="caption" color="text.secondary">Activity</Typography>
+                            <Typography fontWeight={900}>{selectedTeamCycles.length} cycles</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {teamAnalytics?.trivia_sessions ?? 0} sessions · {teamAnalytics?.trophies ?? 0} trophies
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                      </Paper>
+                    ) : null}
+
                     {teamAnalytics ? (
                       <Alert severity="info" sx={{ mb: 2 }}>
                         {teamAnalytics.approved_members} members · {teamAnalytics.pending_members} pending · {teamAnalytics.trivia_sessions} sessions · {teamAnalytics.answers} answers · {teamAnalytics.trophies} trophies
                       </Alert>
                     ) : null}
-                    <List dense>
+
+                    <Typography variant="subtitle1" fontWeight={900} sx={{ mt: 3 }}>Masters and cycles</Typography>
+                    {selectedTeamCycles.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                        No master has been assigned to a cycle for this team.
+                      </Typography>
+                    ) : (
+                      <Grid container spacing={2} sx={{ mb: 3, mt: 0 }}>
+                        {selectedTeamCycles.map((cycle) => (
+                          <Grid item xs={12} md={6} key={cycle.id}>
+                            <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%' }}>
+                              <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">Master</Typography>
+                                  <Typography fontWeight={900}>{cycle.master_name}</Typography>
+                                </Box>
+                                <Chip size="small" label={cycle.status} color={cycle.status === 'active' ? 'success' : 'default'} />
+                              </Stack>
+                              <Typography sx={{ mt: 1 }}><strong>Topic:</strong> {cycle.topic}</Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {cycle.start_date} to {cycle.end_date} · {cycle.trivia_sessions?.length ?? 0} sessions
+                              </Typography>
+                            </Paper>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    )}
+
+                    <Typography variant="subtitle1" fontWeight={900}>People and roles</Typography>
+                    <List disablePadding>
                       {teamMembers.map((membership) => (
-                        <ListItem key={membership.id} disableGutters>
-                          <ListItemText primary={membership.username} secondary={`${membership.email} · ${membership.role} · ${membership.status}`} />
-                          <Stack direction="row" spacing={1}>
+                        <ListItem
+                          key={membership.id}
+                          disableGutters
+                          divider
+                          sx={{ py: 1.5, alignItems: { xs: 'flex-start', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, gap: 1 }}
+                        >
+                          <ListItemText
+                            primary={[membership.first_name, membership.last_name].filter(Boolean).join(' ') || membership.username}
+                            secondary={`${membership.username} · ${membership.email}`}
+                            sx={{ minWidth: 240 }}
+                          />
+                          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ flex: 1 }}>
+                            <Chip
+                              size="small"
+                              color={membership.role === 'team_admin' ? 'primary' : 'default'}
+                              label={membership.role === 'team_admin' ? 'Team admin' : 'Member'}
+                            />
+                            <Chip
+                              size="small"
+                              color={membership.status === 'approved' ? 'success' : membership.status === 'pending' ? 'warning' : 'error'}
+                              label={membership.status}
+                            />
+                            {selectedTeamCycles.filter((cycle) => cycle.master_name === membership.username).map((cycle) => (
+                              <Chip key={cycle.id} size="small" color="warning" label={`Master · ${cycle.topic}`} />
+                            ))}
+                          </Stack>
+                          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                             {membership.status === 'pending' ? (
                               <>
-                                <Button onClick={() => handleMembershipUpdate(membership, { status: 'approved' })}>Approve</Button>
-                                <Button color="error" onClick={() => handleMembershipUpdate(membership, { status: 'rejected' })}>Reject</Button>
+                                <Button size="small" onClick={() => handleMembershipUpdate(membership, { status: 'approved' })}>Approve</Button>
+                                <Button size="small" color="error" onClick={() => handleMembershipUpdate(membership, { status: 'rejected' })}>Reject</Button>
                               </>
                             ) : null}
                             {membership.status === 'approved' && membership.user !== createdUser.id ? (
-                              <Button onClick={() => handleMembershipUpdate(membership, { role: membership.role === 'team_admin' ? 'member' : 'team_admin' })}>
+                              <Button size="small" onClick={() => handleMembershipUpdate(membership, { role: membership.role === 'team_admin' ? 'member' : 'team_admin' })}>
                                 {membership.role === 'team_admin' ? 'Make member' : 'Make team admin'}
                               </Button>
                             ) : null}
-                            {membership.user !== createdUser.id ? <Button color="error" onClick={() => handleRemoveMembership(membership)}>Remove</Button> : null}
+                            {membership.user !== createdUser.id ? <Button size="small" color="error" onClick={() => handleRemoveMembership(membership)}>Remove</Button> : null}
                           </Stack>
                         </ListItem>
                       ))}
