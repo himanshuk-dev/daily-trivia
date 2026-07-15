@@ -1,0 +1,227 @@
+from django.contrib.auth.models import User
+from django.db import transaction
+from django.db.models import Count, Q
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from ..models import MasterCycle, Notification, Team, TeamMembership, TrophyAward, TriviaQuestion, TriviaSession, UserAnswer
+from ..serializers import (
+    MasterCycleSerializer,
+    PublicTriviaQuestionSerializer,
+    TriviaQuestionSerializer,
+    TriviaSessionSerializer,
+    UserAnswerSerializer,
+)
+from ..services.ai_generator import TriviaGenerator
+from .common import can_manage_cycle, get_object_or_404, is_approved_member, is_team_admin
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def master_cycle_list_create(request):
+    if request.method == 'GET':
+        cycles = MasterCycle.objects.select_related('master').prefetch_related('trivia_sessions__questions').order_by('-start_date')
+        if not request.user.is_staff:
+            team_ids = TeamMembership.objects.filter(
+                user=request.user,
+                status=TeamMembership.Status.APPROVED,
+            ).values_list('team_id', flat=True)
+            cycles = cycles.filter(team_id__in=team_ids)
+        return Response(MasterCycleSerializer(cycles, many=True).data)
+
+    serializer = MasterCycleSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    team = serializer.validated_data['team']
+    master = User.objects.filter(username=serializer.validated_data['master_username'], is_active=True).first()
+    if not is_team_admin(request.user, team):
+        return Response({'detail': 'Only a team admin can create cycles for this team.'}, status=status.HTTP_403_FORBIDDEN)
+    if not master or not is_approved_member(master, team):
+        return Response({'master_username': ['The master must be an approved team member.']}, status=status.HTTP_400_BAD_REQUEST)
+    cycle = serializer.save()
+    return Response(MasterCycleSerializer(cycle).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def master_cycle_generate_trivia(request, pk: int):
+    cycle = get_object_or_404(MasterCycle, pk=pk)
+    if not can_manage_cycle(request.user, cycle):
+        return Response({'detail': "Only this cycle's master can generate trivia."}, status=status.HTTP_403_FORBIDDEN)
+    question_count = int(request.data.get('question_count', 5))
+    title = request.data.get('title') or f'{cycle.topic} Trivia'
+    try:
+        generated_questions = TriviaGenerator().generate(cycle.topic, question_count=question_count)
+    except Exception as exc:
+        return Response({'detail': f'Trivia generation failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    session = TriviaSession.objects.create(master_cycle=cycle, title=title, topic=cycle.topic)
+    for order, question in enumerate(generated_questions, start=1):
+        TriviaQuestion.objects.create(
+            trivia_session=session,
+            prompt=question.prompt,
+            choices=question.choices,
+            correct_choice=question.correct_choice,
+            explanation=question.explanation,
+            sort_order=order,
+        )
+    return Response(TriviaSessionSerializer(session).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def master_cycle_create_trivia(request, pk: int):
+    cycle = get_object_or_404(MasterCycle, pk=pk)
+    if not can_manage_cycle(request.user, cycle):
+        return Response({'detail': "Only this cycle's master can create trivia."}, status=status.HTTP_403_FORBIDDEN)
+    questions_data = request.data.get('questions', [])
+    question_serializer = TriviaQuestionSerializer(data=questions_data, many=True)
+    question_serializer.is_valid(raise_exception=True)
+    if not questions_data:
+        return Response({'questions': ['At least one question is required.']}, status=status.HTTP_400_BAD_REQUEST)
+    with transaction.atomic():
+        session = TriviaSession.objects.create(
+            master_cycle=cycle,
+            title=request.data.get('title', '').strip() or f'{cycle.topic} Trivia',
+            topic=cycle.topic,
+        )
+        for order, question in enumerate(question_serializer.validated_data, start=1):
+            TriviaQuestion.objects.create(trivia_session=session, sort_order=order, **question)
+    return Response(TriviaSessionSerializer(session).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def trivia_session_update(request, pk: int):
+    session = get_object_or_404(TriviaSession, pk=pk)
+    if not can_manage_cycle(request.user, session.master_cycle):
+        return Response({'detail': "Only this cycle's master can edit trivia."}, status=status.HTTP_403_FORBIDDEN)
+    if session.status != TriviaSession.Status.DRAFT:
+        return Response({'detail': 'Only draft trivia can be edited.'}, status=status.HTTP_409_CONFLICT)
+    questions_data = request.data.get('questions', [])
+    question_serializer = TriviaQuestionSerializer(data=questions_data, many=True)
+    question_serializer.is_valid(raise_exception=True)
+    if not questions_data:
+        return Response({'questions': ['At least one question is required.']}, status=status.HTTP_400_BAD_REQUEST)
+    with transaction.atomic():
+        session.title = request.data.get('title', session.title).strip() or session.title
+        session.save(update_fields=['title'])
+        session.questions.all().delete()
+        for order, question in enumerate(question_serializer.validated_data, start=1):
+            TriviaQuestion.objects.create(trivia_session=session, sort_order=order, **question)
+    return Response(TriviaSessionSerializer(session).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def trivia_session_retrieve(request, pk: int):
+    session = get_object_or_404(TriviaSession.objects.prefetch_related('questions'), pk=pk)
+    if session.master_cycle.team and not is_approved_member(request.user, session.master_cycle.team):
+        return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
+    if can_manage_cycle(request.user, session.master_cycle):
+        return Response(TriviaSessionSerializer(session).data)
+    data = TriviaSessionSerializer(session).data
+    data['questions'] = PublicTriviaQuestionSerializer(session.questions.all(), many=True).data
+    return Response(data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def trivia_session_publish(request, pk: int):
+    session = get_object_or_404(TriviaSession, pk=pk)
+    if not can_manage_cycle(request.user, session.master_cycle):
+        return Response({'detail': "Only this cycle's master can publish trivia."}, status=status.HTTP_403_FORBIDDEN)
+    session.status = TriviaSession.Status.LIVE
+    session.publish_at = timezone.now()
+    session.save(update_fields=['status', 'publish_at'])
+    if session.master_cycle.team:
+        member_ids = TeamMembership.objects.filter(
+            team=session.master_cycle.team,
+            status=TeamMembership.Status.APPROVED,
+        ).exclude(user=request.user).values_list('user_id', flat=True)
+        Notification.objects.bulk_create([
+            Notification(user_id=user_id, team=session.master_cycle.team, message=f'New trivia is live: {session.title}')
+            for user_id in member_ids
+        ])
+    return Response(TriviaSessionSerializer(session).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def trivia_session_answers(request, pk: int):
+    session = get_object_or_404(TriviaSession, pk=pk)
+    if session.status != TriviaSession.Status.LIVE:
+        return Response({'detail': 'Answers are only accepted for live trivia.'}, status=status.HTTP_409_CONFLICT)
+    if session.master_cycle.team and not is_approved_member(request.user, session.master_cycle.team):
+        return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
+    serializer = UserAnswerSerializer(data={
+        'trivia_session': session.id,
+        'trivia_question': request.data.get('trivia_question'),
+        'user': request.user.id,
+        'selected_choice': request.data.get('selected_choice'),
+    })
+    serializer.is_valid(raise_exception=True)
+    question = serializer.validated_data['trivia_question']
+    if question.trivia_session_id != session.id:
+        return Response({'trivia_question': ['This question does not belong to the trivia session.']}, status=status.HTTP_400_BAD_REQUEST)
+    if serializer.validated_data['selected_choice'] not in question.choices:
+        return Response({'selected_choice': ['Select one of the available choices.']}, status=status.HTTP_400_BAD_REQUEST)
+    answer, _created = UserAnswer.objects.update_or_create(
+        trivia_session=session,
+        trivia_question_id=question.id,
+        user_id=request.user.id,
+        defaults={'selected_choice': serializer.validated_data['selected_choice']},
+    )
+    return Response(UserAnswerSerializer(answer).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def trivia_session_evaluate(request, pk: int):
+    session = get_object_or_404(TriviaSession.objects.prefetch_related('questions', 'answers__user'), pk=pk)
+    if not can_manage_cycle(request.user, session.master_cycle):
+        return Response({'detail': "Only this cycle's master can evaluate trivia."}, status=status.HTTP_403_FORBIDDEN)
+    correct_user_ids: list[int] = []
+    with transaction.atomic():
+        for answer in session.answers.select_related('user'):
+            answer.is_correct = answer.selected_choice == answer.trivia_question.correct_choice
+            answer.evaluated_at = timezone.now()
+            answer.save(update_fields=['is_correct', 'evaluated_at'])
+            if answer.is_correct:
+                correct_user_ids.append(answer.user_id)
+                TrophyAward.objects.get_or_create(
+                    trivia_session=session,
+                    user=answer.user,
+                    defaults={'reason': 'Correct trivia answer'},
+                )
+    trophy_count = TrophyAward.objects.filter(trivia_session=session).count()
+    session.status = TriviaSession.Status.CLOSED
+    session.close_at = timezone.now()
+    session.save(update_fields=['status', 'close_at'])
+    return Response({'session_id': session.id, 'correct_users': correct_user_ids, 'trophies_awarded': trophy_count})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def leaderboard_view(request):
+    team_id = request.query_params.get('team')
+    if team_id:
+        team = get_object_or_404(Team, pk=team_id)
+        if not is_approved_member(request.user, team):
+            return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
+    leaderboard = (
+        User.objects.annotate(
+            trophy_count=Count(
+                'trophy_awards',
+                filter=Q(trophy_awards__trivia_session__master_cycle__team_id=team_id) if team_id else Q(),
+            )
+        )
+        .filter(trophy_count__gt=0)
+        .order_by('-trophy_count', 'username')
+    )
+    return Response([
+        {'user_id': user.id, 'username': user.username, 'trophy_count': user.trophy_count}
+        for user in leaderboard
+    ])

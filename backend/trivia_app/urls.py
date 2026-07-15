@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import (
+from .api import (
     auth_logout,
     auth_me,
     auth_request_code,
