@@ -3,9 +3,205 @@ body,
 #root {
   margin: 0;
   min-height: 100%;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 body {
-  background: #f3f4f6;
+  background: #fff8fd;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  color: #fff;
+  background: #ff5bbd;
+}
+
+.auth-shell,
+.app-shell {
+  position: relative;
+  overflow: hidden;
+  background-color: #8a4dff;
+  background-image:
+    radial-gradient(circle at 12% 16%, #ff5bbd 0 5%, transparent 5.2%),
+    radial-gradient(circle at 88% 10%, #ffb12b 0 4%, transparent 4.2%),
+    linear-gradient(135deg, transparent 0 48%, rgba(71, 18, 177, 0.2) 48% 52%, transparent 52%),
+    radial-gradient(#5420c7 2px, transparent 2px);
+  background-size: auto, auto, 180px 180px, 24px 24px;
+}
+
+.auth-shell::before,
+.auth-shell::after,
+.app-shell::before,
+.app-shell::after {
+  position: absolute;
+  z-index: 0;
+  display: block;
+  color: #ffb12b;
+  font-size: clamp(7rem, 15vw, 14rem);
+  font-weight: 900;
+  line-height: 1;
+  content: '✦';
+  opacity: 0.95;
+  pointer-events: none;
+  transform: rotate(14deg);
+}
+
+.auth-shell::before,
+.app-shell::before {
+  top: 5%;
+  left: -2%;
+}
+
+.auth-shell::after,
+.app-shell::after {
+  right: -2%;
+  bottom: 1%;
+  color: #ff5bbd;
+  transform: rotate(-12deg);
+}
+
+.auth-card,
+.app-shell > .MuiContainer-root {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-card {
+  overflow: visible !important;
+  border: 3px solid #25103d !important;
+  box-shadow: 10px 10px 0 #ffb12b !important;
+}
+
+.trivia-mark {
+  display: grid;
+  width: 70px;
+  height: 70px;
+  margin-top: -72px;
+  margin-bottom: 18px;
+  place-items: center;
+  color: #25103d;
+  background: #ffd600;
+  border: 3px solid #25103d;
+  border-radius: 50% 48% 46% 52%;
+  box-shadow: 5px 5px 0 #5420c7;
+  font-size: 2.7rem;
+  font-weight: 900;
+  transform: rotate(8deg);
+}
+
+.eyebrow {
+  color: #5420c7;
+  font-weight: 900 !important;
+  letter-spacing: 0.18em !important;
+}
+
+.orange-word {
+  color: #f47420;
+  text-shadow: 2px 2px 0 #ffb12b;
+}
+
+.trivia-appbar {
+  color: #25103d !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-bottom: 3px solid #5420c7;
+  backdrop-filter: blur(14px);
+}
+
+.mini-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  color: #25103d;
+  background: #ffb12b;
+  border: 2px solid #25103d;
+  border-radius: 50%;
+  transform: rotate(-8deg);
+}
+
+.hero-panel {
+  position: relative;
+  padding: clamp(24px, 5vw, 54px);
+  overflow: hidden;
+  background: #5420c7;
+  border: 3px solid #25103d;
+  border-radius: 30px;
+  box-shadow: 10px 10px 0 #ffb12b;
+}
+
+.hero-panel::after {
+  position: absolute;
+  right: clamp(10px, 5vw, 70px);
+  bottom: -34px;
+  color: #ffd600;
+  content: '?';
+  font-size: clamp(8rem, 20vw, 15rem);
+  font-weight: 900;
+  line-height: 1;
+  opacity: 0.24;
+  transform: rotate(10deg);
+}
+
+.hero-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-pop {
+  color: #ffb12b;
+  text-shadow: 3px 3px 0 #f47420;
+}
+
+.app-shell .MuiCard-root {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.app-shell .MuiCard-root:hover {
+  border-color: #8a4dff;
+  box-shadow: 0 16px 34px rgba(84, 32, 199, 0.2);
+  transform: translateY(-4px);
+}
+
+.app-shell .MuiCardContent-root {
+  padding: 24px;
+}
+
+.app-shell .MuiCardContent-root > .MuiTypography-h6:first-child {
+  color: #5420c7;
+}
+
+.MuiPaper-outlined {
+  border: 2px solid #eadcff !important;
+}
+
+.MuiChip-root {
+  font-weight: 800;
+}
+
+.MuiAlert-root {
+  border: 2px solid currentColor;
+  border-radius: 16px !important;
+}
+
+.MuiRadio-root.Mui-checked {
+  color: #f47420 !important;
+}
+
+@media (max-width: 700px) {
+  .hero-panel {
+    box-shadow: 6px 6px 0 #ffb12b;
+  }
+
+  .hero-panel .MuiTypography-h2 {
+    font-size: 2.65rem;
+  }
+
+  .trivia-appbar .MuiToolbar-root {
+    align-items: flex-start;
+    gap: 10px;
+    flex-direction: column;
+    padding-block: 12px;
+  }
 }

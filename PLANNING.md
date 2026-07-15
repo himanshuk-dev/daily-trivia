@@ -47,7 +47,7 @@ Build a trivia app where users create usernames, a manually selected master choo
 - The master is chosen manually.
 - Every user with a correct answer receives a trophy.
 - The app includes a public leaderboard.
-- Users register with a unique username and unique email address.
+- Users register with a first name, last name, unique username, and unique email address.
 - Authentication uses short-lived email one-time codes instead of passwords.
 - Authenticated identity must be enforced by the backend; a user cannot use another username.
 - Users can log in, log out, and access a personal account and team-management area.
@@ -59,7 +59,7 @@ Build a trivia app where users create usernames, a manually selected master choo
 - Masters can create trivia manually or generate an AI draft, edit it, and publish it.
 
 ## Authentication and Authorization
-- Registration collects username and email, then sends a time-limited one-time code to that email.
+- Registration collects first name, last name, username, and email, then sends a time-limited one-time code to that email.
 - Successful code verification activates the account and creates an authenticated application session.
 - Login requests a new one-time code for an existing email address.
 - Logout invalidates the active application session.
@@ -125,4 +125,3 @@ Build a trivia app where users create usernames, a manually selected master choo
 - Complete: in-app notifications when team trivia is published.
 - Deferred beyond the confirmed multiple-choice MVP: additional question formats and advanced analytics visualizations.
 - External configuration required for production: SMTP credentials and an OpenAI API key. Local development uses console email and deterministic AI draft fallback.
-

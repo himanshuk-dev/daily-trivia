@@ -6,7 +6,7 @@ The application supports passwordless email-code authentication, multiple teams,
 
 ## Features
 
-- Passwordless registration and login using short-lived email codes
+- Passwordless registration with first name, last name, username, email, and short-lived email codes
 - Multiple teams with isolated members, trivia, trophies, and leaderboards
 - Team invite codes with optional administrator approval
 - Platform administrator, team administrator, trivia master, and member roles
@@ -194,7 +194,7 @@ The complete template is in [.env.example](.env.example). Important settings inc
 
 ## Main workflow
 
-1. A user registers with a unique username and email address.
+1. A user registers with their first name, last name, unique username, and email address.
 2. The user verifies the email code printed by the development backend.
 3. A platform or team administrator creates and manages a team.
 4. Members join using the team's invite code.

@@ -7,7 +7,7 @@ from .models import MasterCycle, Notification, Team, TeamMembership, TrophyAward
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'is_staff', 'date_joined']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'date_joined']
         read_only_fields = ['id', 'is_staff', 'date_joined']
 
 
@@ -64,11 +64,19 @@ class MasterCycleSerializer(serializers.ModelSerializer):
 class TeamMembershipSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
 
     class Meta:
         model = TeamMembership
-        fields = ['id', 'team', 'user', 'username', 'email', 'role', 'status', 'joined_at', 'approved_at']
-        read_only_fields = ['id', 'team', 'user', 'username', 'email', 'joined_at', 'approved_at']
+        fields = [
+            'id', 'team', 'user', 'username', 'email', 'first_name', 'last_name',
+            'role', 'status', 'joined_at', 'approved_at',
+        ]
+        read_only_fields = [
+            'id', 'team', 'user', 'username', 'email', 'first_name', 'last_name',
+            'joined_at', 'approved_at',
+        ]
 
 
 class TeamSerializer(serializers.ModelSerializer):

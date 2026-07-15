@@ -17,11 +17,19 @@ class EmailCodeAuthenticationTests(APITestCase):
         email = 'himanshu.kumar@ssc-spc.gc.ca'
         response = self.client.post(
             '/api/auth/request-code/',
-            {'username': 'himanshu', 'email': email},
+            {
+                'username': 'himanshu',
+                'email': email,
+                'first_name': 'Himanshu',
+                'last_name': 'Kumar',
+            },
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 1)
+        user = User.objects.get(email=email)
+        self.assertEqual(user.first_name, 'Himanshu')
+        self.assertEqual(user.last_name, 'Kumar')
 
         code = re.search(r'\b\d{6}\b', mail.outbox[0].body).group(0)
         response = self.client.post(
@@ -31,10 +39,13 @@ class EmailCodeAuthenticationTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['user']['is_staff'])
+        self.assertEqual(response.data['user']['first_name'], 'Himanshu')
+        self.assertEqual(response.data['user']['last_name'], 'Kumar')
 
         token = response.data['token']
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token}')
         self.assertEqual(self.client.get('/api/auth/me/').status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get('/api/auth/me/').data['first_name'], 'Himanshu')
         self.assertEqual(self.client.post('/api/auth/logout/').status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual(self.client.get('/api/auth/me/').status_code, status.HTTP_401_UNAUTHORIZED)
 

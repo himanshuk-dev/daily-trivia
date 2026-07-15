@@ -47,6 +47,8 @@ export default function App() {
   const [authStep, setAuthStep] = useState('request')
   const [authEmail, setAuthEmail] = useState('')
   const [authUsername, setAuthUsername] = useState('')
+  const [authFirstName, setAuthFirstName] = useState('')
+  const [authLastName, setAuthLastName] = useState('')
   const [authCode, setAuthCode] = useState('')
   const [managedUsername, setManagedUsername] = useState('')
   const [managedEmail, setManagedEmail] = useState('')
@@ -149,7 +151,11 @@ export default function App() {
     try {
       await api.requestCode({
         email: authEmail.trim(),
-        ...(authMode === 'register' ? { username: authUsername.trim() } : {}),
+        ...(authMode === 'register' ? {
+          username: authUsername.trim(),
+          first_name: authFirstName.trim(),
+          last_name: authLastName.trim(),
+        } : {}),
       })
       setAuthStep('verify')
       setMessage(`A login code was sent to ${authEmail.trim()}.`)
@@ -353,13 +359,15 @@ export default function App() {
     return (
       <>
         <CssBaseline />
-        <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 2, background: '#0f172a' }}>
-          <Card sx={{ width: '100%', maxWidth: 480, borderRadius: 4 }}>
+        <Box className="auth-shell" sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 2 }}>
+          <Card className="auth-card" sx={{ width: '100%', maxWidth: 500, borderRadius: 4 }}>
             <CardContent sx={{ p: 4 }}>
               <Stack spacing={3}>
                 <Box>
-                  <Typography variant="h4" fontWeight={900}>Daily Trivia</Typography>
-                  <Typography color="text.secondary">Sign in securely with a one-time email code.</Typography>
+                  <Box className="trivia-mark" aria-hidden="true">?</Box>
+                  <Typography variant="overline" className="eyebrow">Ready, set, think!</Typography>
+                  <Typography variant="h4" fontWeight={900}>Daily <span className="orange-word">Trivia</span></Typography>
+                  <Typography color="text.secondary">Join the fun with a one-time email code. No passwords, no fuss.</Typography>
                 </Box>
                 {message ? <Alert severity="info">{message}</Alert> : null}
                 {authStep === 'request' ? (
@@ -369,13 +377,19 @@ export default function App() {
                       <Button variant={authMode === 'register' ? 'contained' : 'outlined'} onClick={() => setAuthMode('register')}>Register</Button>
                     </Stack>
                     {authMode === 'register' ? (
-                      <TextField label="Username" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} />
+                      <>
+                        <TextField label="First name" value={authFirstName} onChange={(event) => setAuthFirstName(event.target.value)} required />
+                        <TextField label="Last name" value={authLastName} onChange={(event) => setAuthLastName(event.target.value)} required />
+                        <TextField label="Username" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} required />
+                      </>
                     ) : null}
                     <TextField label="Email" type="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} />
                     <Button
                       variant="contained"
                       onClick={handleRequestCode}
-                      disabled={!authEmail.trim() || (authMode === 'register' && !authUsername.trim())}
+                      disabled={!authEmail.trim() || (authMode === 'register' && (
+                        !authFirstName.trim() || !authLastName.trim() || !authUsername.trim()
+                      ))}
                     >
                       Email me a code
                     </Button>
@@ -453,12 +467,12 @@ export default function App() {
   return (
     <>
       <CssBaseline />
-      <AppBar position="static" color="transparent" elevation={0}>
+      <AppBar position="sticky" className="trivia-appbar" elevation={0}>
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           <Stack direction="row" spacing={1} alignItems="center">
-            <EmojiEventsIcon color="warning" />
+            <Box className="mini-mark"><EmojiEventsIcon /></Box>
             <Typography variant="h6" fontWeight={800}>
-              Daily Trivia
+              Daily <span className="orange-word">Trivia</span>
             </Typography>
           </Stack>
           <Stack direction="row" spacing={1}>
@@ -470,14 +484,17 @@ export default function App() {
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ py: 4, minHeight: '100vh', background: 'linear-gradient(180deg, #0f172a 0%, #111827 35%, #f3f4f6 35%, #f3f4f6 100%)' }}>
+      <Box className="app-shell" sx={{ py: 4, minHeight: '100vh' }}>
         <Container maxWidth="lg">
-          <Box sx={{ color: 'white', mb: 4 }}>
+          <Box className="hero-panel" sx={{ color: 'white', mb: 4 }}>
             <Typography variant="overline" letterSpacing={4}>
-              Biweekly trivia battles
+              ✦ Biweekly trivia battles ✦
             </Typography>
             <Typography variant="h2" fontWeight={900} sx={{ maxWidth: 760 }}>
-              AI-generated trivia, master-approved publishing, and trophies for every correct user.
+              Big questions. Bright ideas. <span className="hero-pop">Bragging rights.</span>
+            </Typography>
+            <Typography sx={{ maxWidth: 680, mt: 1.5, fontSize: { xs: '1rem', md: '1.15rem' } }}>
+              Play master-approved trivia with your team and turn every clever answer into a trophy.
             </Typography>
           </Box>
 
@@ -491,7 +508,10 @@ export default function App() {
                     Your account
                   </Typography>
                   <Stack spacing={2}>
-                    <Chip label={`Signed in: ${createdUser.username}`} color="success" />
+                    <Chip
+                      label={`Signed in: ${[createdUser.first_name, createdUser.last_name].filter(Boolean).join(' ') || createdUser.username}`}
+                      color="success"
+                    />
                     <Typography variant="body2" color="text.secondary">{createdUser.email}</Typography>
                     {createdUser.is_staff ? <Chip label="Platform admin" color="primary" /> : null}
                     <Typography variant="body2">{notifications.filter((item) => !item.read_at).length} unread notifications</Typography>

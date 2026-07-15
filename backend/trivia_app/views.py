@@ -71,6 +71,8 @@ def can_manage_cycle(user: User, cycle: MasterCycle) -> bool:
 def auth_request_code(request):
     email = request.data.get('email', '').strip().lower()
     username = request.data.get('username', '').strip()
+    first_name = request.data.get('first_name', '').strip()
+    last_name = request.data.get('last_name', '').strip()
     if not email:
         return Response({'email': ['Email is required.']}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -83,9 +85,21 @@ def auth_request_code(request):
             )
         if User.objects.filter(username__iexact=username).exists():
             return Response({'username': ['This username is already in use.']}, status=status.HTTP_400_BAD_REQUEST)
-        user = User.objects.create_user(username=username, email=email, is_active=False)
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=False,
+        )
     elif username and user.username.lower() != username.lower():
         return Response({'email': ['An account already exists for this email.']}, status=status.HTTP_400_BAD_REQUEST)
+    elif username and not user.is_active:
+        # Registration may be retried before the code is verified. Preserve the
+        # latest name values entered on the registration form.
+        user.first_name = first_name
+        user.last_name = last_name
+        user.save(update_fields=['first_name', 'last_name'])
 
     code = f'{secrets.randbelow(1_000_000):06d}'
     EmailLoginCode.objects.filter(user=user, used_at__isnull=True).delete()
