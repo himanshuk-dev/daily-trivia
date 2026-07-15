@@ -23,23 +23,16 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material'
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import { api } from './api'
-
-const sampleChoices = ['Option A', 'Option B', 'Option C', 'Option D']
-
-function formatDate(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function addDays(dateString, days) {
-  const date = new Date(`${dateString}T00:00:00`)
-  date.setDate(date.getDate() + days)
-  return formatDate(date)
-}
+import { AppHeader } from './components/AppHeader'
+import { AuthScreen } from './components/AuthScreen'
+import { LiveTrivia } from './components/LiveTrivia'
+import { MasterAssignment } from './components/MasterAssignment'
+import { PlatformAdminPanel } from './components/PlatformAdminPanel'
+import { TeamAdministration } from './components/TeamAdministration'
+import { TriviaBuilder } from './components/TriviaBuilder'
+import { UserManagement } from './components/UserManagement'
+import { addDays, formatDate } from './utils/dates'
 
 export default function App() {
   const today = useMemo(() => formatDate(new Date()), [])
@@ -387,57 +380,13 @@ export default function App() {
   }
 
   if (!createdUser) {
-    return (
-      <>
-        <CssBaseline />
-        <Box className="auth-shell" sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 2 }}>
-          <Card className="auth-card" sx={{ width: '100%', maxWidth: 500, borderRadius: 4 }}>
-            <CardContent sx={{ p: 4 }}>
-              <Stack spacing={3}>
-                <Box>
-                  <Box className="trivia-mark" aria-hidden="true">?</Box>
-                  <Typography variant="overline" className="eyebrow">Ready, set, think!</Typography>
-                  <Typography variant="h4" fontWeight={900}>Daily <span className="orange-word">Trivia</span></Typography>
-                  <Typography color="text.secondary">Join the fun with a one-time email code. No passwords, no fuss.</Typography>
-                </Box>
-                {message ? <Alert severity="info">{message}</Alert> : null}
-                {authStep === 'request' ? (
-                  <>
-                    <Stack direction="row" spacing={1}>
-                      <Button variant={authMode === 'login' ? 'contained' : 'outlined'} onClick={() => setAuthMode('login')}>Login</Button>
-                      <Button variant={authMode === 'register' ? 'contained' : 'outlined'} onClick={() => setAuthMode('register')}>Register</Button>
-                    </Stack>
-                    {authMode === 'register' ? (
-                      <>
-                        <TextField label="First name" value={authFirstName} onChange={(event) => setAuthFirstName(event.target.value)} required />
-                        <TextField label="Last name" value={authLastName} onChange={(event) => setAuthLastName(event.target.value)} required />
-                        <TextField label="Username" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} required />
-                      </>
-                    ) : null}
-                    <TextField label="Email" type="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} />
-                    <Button
-                      variant="contained"
-                      onClick={handleRequestCode}
-                      disabled={!authEmail.trim() || (authMode === 'register' && (
-                        !authFirstName.trim() || !authLastName.trim() || !authUsername.trim()
-                      ))}
-                    >
-                      Email me a code
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <TextField label="Six-digit code" value={authCode} onChange={(event) => setAuthCode(event.target.value)} inputProps={{ maxLength: 6 }} />
-                    <Button variant="contained" onClick={handleVerifyCode} disabled={authCode.trim().length !== 6}>Verify and continue</Button>
-                    <Button onClick={() => setAuthStep('request')}>Use a different email</Button>
-                  </>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Box>
-      </>
-    )
+    return <AuthScreen
+      auth={{ mode: authMode, step: authStep, email: authEmail, username: authUsername, firstName: authFirstName, lastName: authLastName, code: authCode }}
+      setters={{ setMode: setAuthMode, setStep: setAuthStep, setEmail: setAuthEmail, setUsername: setAuthUsername, setFirstName: setAuthFirstName, setLastName: setAuthLastName, setCode: setAuthCode }}
+      message={message}
+      onRequestCode={handleRequestCode}
+      onVerifyCode={handleVerifyCode}
+    />
   }
 
   const handleLoadFirstSession = async () => {
@@ -498,22 +447,7 @@ export default function App() {
   return (
     <>
       <CssBaseline />
-      <AppBar position="sticky" className="trivia-appbar" elevation={0}>
-        <Toolbar sx={{ justifyContent: 'space-between' }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Box className="mini-mark"><EmojiEventsIcon /></Box>
-            <Typography variant="h6" fontWeight={800}>
-              Daily <span className="orange-word">Trivia</span>
-            </Typography>
-          </Stack>
-          <Stack direction="row" spacing={1}>
-            <Button variant={dashboardView === 'user' ? 'contained' : 'text'} onClick={() => setDashboardView('user')}>User dashboard</Button>
-            {createdUser.is_staff ? (
-              <Button variant={dashboardView === 'admin' ? 'contained' : 'text'} onClick={() => setDashboardView('admin')}>Admin dashboard</Button>
-            ) : null}
-          </Stack>
-        </Toolbar>
-      </AppBar>
+      <AppHeader currentView={dashboardView} isPlatformAdmin={createdUser.is_staff} onViewChange={setDashboardView} />
 
       <Box className="app-shell" sx={{ py: 4, minHeight: '100vh' }}>
         <Container maxWidth="lg">
@@ -652,511 +586,77 @@ export default function App() {
             </Grid>
 
             {createdUser.is_staff && dashboardView === 'admin' ? (
-              <Grid item xs={12}>
-                <Card sx={{ borderRadius: 4 }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>Platform admin dashboard</Typography>
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
-                      <TextField label="New team name" value={newTeam.name} onChange={(event) => setNewTeam((current) => ({ ...current, name: event.target.value }))} fullWidth />
-                      <TextField
-                        select
-                        label="Initial team admin"
-                        value={newTeam.initial_admin_id}
-                        onChange={(event) => setNewTeam((current) => ({ ...current, initial_admin_id: event.target.value }))}
-                        fullWidth
-                      >
-                        <MenuItem value="">Assign me</MenuItem>
-                        {users.map((user) => (
-                          <MenuItem key={user.id} value={String(user.id)}>
-                            {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username} ({user.username})
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                      <TextField
-                        select
-                        label="Membership approval"
-                        value={String(newTeam.approval_required)}
-                        onChange={(event) => setNewTeam((current) => ({ ...current, approval_required: event.target.value === 'true' }))}
-                        fullWidth
-                      >
-                        <MenuItem value="true">Admin approval required</MenuItem>
-                        <MenuItem value="false">Join immediately</MenuItem>
-                      </TextField>
-                      <Button variant="contained" onClick={handleCreateTeam} disabled={!newTeam.name.trim()} sx={{ minWidth: 140 }}>Create team</Button>
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      The initial admin is approved automatically and can assign themselves or another approved member as trivia master.
-                    </Typography>
-                    <Typography variant="subtitle2">Platform administrators</Typography>
-                    <List dense>
-                      {users.map((user) => (
-                        <ListItem key={user.id} disableGutters secondaryAction={(
-                          <Button onClick={() => handleAdminToggle(user)} disabled={user.id === createdUser.id}>
-                            {user.is_staff ? 'Remove admin' : 'Make admin'}
-                          </Button>
-                        )}>
-                          <ListItemText primary={user.username} secondary={`${user.email}${user.is_staff ? ' · Admin' : ''}`} />
-                        </ListItem>
-                      ))}
-                    </List>
-                  </CardContent>
-                </Card>
-              </Grid>
+              <PlatformAdminPanel
+                currentUser={createdUser}
+                users={users}
+                team={newTeam}
+                setTeam={setNewTeam}
+                onCreateTeam={handleCreateTeam}
+                onToggleAdmin={handleAdminToggle}
+              />
             ) : null}
 
             {canManageSelectedTeam ? (
-              <Grid item xs={12}>
-                <Card sx={{ borderRadius: 4 }}>
-                  <CardContent>
-                    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
-                      <Box>
-                        <Typography variant="h6">Team administration</Typography>
-                        <Typography color="text.secondary">
-                          Review each team’s administrators, masters, members, admission policy, and activity.
-                        </Typography>
-                      </Box>
-                      {selectedTeam ? (
-                        <Chip
-                          color={selectedTeam.approval_required ? 'warning' : 'success'}
-                          label={selectedTeam.approval_required ? 'Approval required' : 'Immediate approval'}
-                        />
-                      ) : null}
-                    </Stack>
-
-                    {createdUser.is_staff ? (
-                      <Box sx={{ mb: 3 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 1 }}>All teams</Typography>
-                        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                          {teams.map((team) => (
-                            <Button
-                              key={team.id}
-                              size="small"
-                              variant={String(team.id) === String(selectedTeamId) ? 'contained' : 'outlined'}
-                              onClick={() => setSelectedTeamId(String(team.id))}
-                            >
-                              {team.name} · {team.member_count} members
-                            </Button>
-                          ))}
-                        </Stack>
-                      </Box>
-                    ) : null}
-
-                    {selectedTeam ? (
-                      <Paper variant="outlined" sx={{ p: 2.5, mb: 3, borderRadius: 3, bgcolor: '#fbf8ff' }}>
-                        <Grid container spacing={2}>
-                          <Grid item xs={12} sm={6} md={3}>
-                            <Typography variant="caption" color="text.secondary">Team</Typography>
-                            <Typography fontWeight={900}>{selectedTeam.name}</Typography>
-                            <Typography variant="body2" color="text.secondary">/{selectedTeam.slug}</Typography>
-                          </Grid>
-                          <Grid item xs={12} sm={6} md={3}>
-                            <Typography variant="caption" color="text.secondary">Created by</Typography>
-                            <Typography fontWeight={800}>{selectedTeam.created_by_username || `User #${selectedTeam.created_by}`}</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {new Date(selectedTeam.created_at).toLocaleDateString()}
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12} sm={6} md={3}>
-                            <Typography variant="caption" color="text.secondary">Invite code</Typography>
-                            <Typography fontWeight={900}>{selectedTeam.invite_code || 'Hidden'}</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {selectedTeam.approval_required ? 'Admin reviews new members' : 'Members join approved'}
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12} sm={6} md={3}>
-                            <Typography variant="caption" color="text.secondary">Activity</Typography>
-                            <Typography fontWeight={900}>{selectedTeamCycles.length} cycles</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {teamAnalytics?.trivia_sessions ?? 0} sessions · {teamAnalytics?.trophies ?? 0} trophies
-                            </Typography>
-                          </Grid>
-                        </Grid>
-                      </Paper>
-                    ) : null}
-
-                    {teamAnalytics ? (
-                      <Alert severity="info" sx={{ mb: 2 }}>
-                        {teamAnalytics.approved_members} members · {teamAnalytics.pending_members} pending · {teamAnalytics.trivia_sessions} sessions · {teamAnalytics.answers} answers · {teamAnalytics.trophies} trophies
-                      </Alert>
-                    ) : null}
-
-                    <Typography variant="subtitle1" fontWeight={900} sx={{ mt: 3 }}>Masters and cycles</Typography>
-                    {selectedTeamCycles.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                        No master has been assigned to a cycle for this team.
-                      </Typography>
-                    ) : (
-                      <Grid container spacing={2} sx={{ mb: 3, mt: 0 }}>
-                        {selectedTeamCycles.map((cycle) => (
-                          <Grid item xs={12} md={6} key={cycle.id}>
-                            <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%' }}>
-                              <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
-                                <Box>
-                                  <Typography variant="caption" color="text.secondary">Master</Typography>
-                                  <Typography fontWeight={900}>{cycle.master_name}</Typography>
-                                </Box>
-                                <Chip size="small" label={cycle.status} color={cycle.status === 'active' ? 'success' : 'default'} />
-                              </Stack>
-                              <Typography sx={{ mt: 1 }}><strong>Topic:</strong> {cycle.topic}</Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {cycle.start_date} to {cycle.end_date} · {cycle.trivia_sessions?.length ?? 0} sessions
-                              </Typography>
-                            </Paper>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    )}
-
-                    <Typography variant="subtitle1" fontWeight={900}>People and roles</Typography>
-                    <Paper variant="outlined" sx={{ p: 2, my: 1.5, borderRadius: 3, bgcolor: '#fbf8ff' }}>
-                      <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Add an existing user</Typography>
-                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                        <TextField
-                          select
-                          fullWidth
-                          label="User"
-                          value={newMembership.user_id}
-                          onChange={(event) => setNewMembership((current) => ({ ...current, user_id: event.target.value }))}
-                        >
-                          {availableTeamUsers.length === 0 ? (
-                            <MenuItem value="" disabled>All active users are already on this team</MenuItem>
-                          ) : availableTeamUsers.map((user) => (
-                            <MenuItem key={user.id} value={String(user.id)}>
-                              {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username} · {user.email}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="Team role"
-                          value={newMembership.role}
-                          onChange={(event) => setNewMembership((current) => ({ ...current, role: event.target.value }))}
-                          sx={{ minWidth: { md: 220 } }}
-                        >
-                          <MenuItem value="member">Member</MenuItem>
-                          <MenuItem value="team_admin">Team admin</MenuItem>
-                        </TextField>
-                        <Button
-                          variant="contained"
-                          onClick={handleAddTeamMember}
-                          disabled={!newMembership.user_id}
-                          sx={{ minWidth: 150 }}
-                        >
-                          Add to team
-                        </Button>
-                      </Stack>
-                      <Typography variant="caption" color="text.secondary">
-                        Directly added users are approved immediately. They can access this team the next time their dashboard refreshes.
-                      </Typography>
-                    </Paper>
-                    <List disablePadding>
-                      {teamMembers.map((membership) => (
-                        <ListItem
-                          key={membership.id}
-                          disableGutters
-                          divider
-                          sx={{ py: 1.5, alignItems: { xs: 'flex-start', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, gap: 1 }}
-                        >
-                          <ListItemText
-                            primary={[membership.first_name, membership.last_name].filter(Boolean).join(' ') || membership.username}
-                            secondary={`${membership.username} · ${membership.email}`}
-                            sx={{ minWidth: 240 }}
-                          />
-                          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ flex: 1 }}>
-                            <Chip
-                              size="small"
-                              color={membership.role === 'team_admin' ? 'primary' : 'default'}
-                              label={membership.role === 'team_admin' ? 'Team admin' : 'Member'}
-                            />
-                            <Chip
-                              size="small"
-                              color={membership.status === 'approved' ? 'success' : membership.status === 'pending' ? 'warning' : 'error'}
-                              label={membership.status}
-                            />
-                            {selectedTeamCycles.filter((cycle) => cycle.master_name === membership.username).map((cycle) => (
-                              <Chip key={cycle.id} size="small" color="warning" label={`Master · ${cycle.topic}`} />
-                            ))}
-                          </Stack>
-                          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                            {membership.status === 'pending' ? (
-                              <>
-                                <Button size="small" onClick={() => handleMembershipUpdate(membership, { status: 'approved' })}>Approve</Button>
-                                <Button size="small" color="error" onClick={() => handleMembershipUpdate(membership, { status: 'rejected' })}>Reject</Button>
-                              </>
-                            ) : null}
-                            {membership.status === 'approved' && membership.user !== createdUser.id ? (
-                              <Button size="small" onClick={() => handleMembershipUpdate(membership, { role: membership.role === 'team_admin' ? 'member' : 'team_admin' })}>
-                                {membership.role === 'team_admin' ? 'Make member' : 'Make team admin'}
-                              </Button>
-                            ) : null}
-                            {membership.user !== createdUser.id ? <Button size="small" color="error" onClick={() => handleRemoveMembership(membership)}>Remove</Button> : null}
-                          </Stack>
-                        </ListItem>
-                      ))}
-                    </List>
-                  </CardContent>
-                </Card>
-              </Grid>
+              <TeamAdministration
+                currentUser={createdUser}
+                teams={teams}
+                selectedTeam={selectedTeam}
+                selectedTeamId={selectedTeamId}
+                setSelectedTeamId={setSelectedTeamId}
+                cycles={selectedTeamCycles}
+                analytics={teamAnalytics}
+                members={teamMembers}
+                availableUsers={availableTeamUsers}
+                newMembership={newMembership}
+                setNewMembership={setNewMembership}
+                onAddMember={handleAddTeamMember}
+                onUpdateMember={handleMembershipUpdate}
+                onRemoveMember={handleRemoveMembership}
+              />
             ) : null}
 
-            {canManageSelectedTeam ? <Grid item xs={12}>
-              <Card sx={{ borderRadius: 4 }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Add master
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Select an approved {selectedTeam?.name} member to lead the next two-week trivia cycle.
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={3}>
-                      <TextField
-                        select
-                        fullWidth
-                        label="Master"
-                        value={masterCycle.master_username}
-                        onChange={(event) => setMasterCycle((current) => ({ ...current, master_username: event.target.value }))}
-                        disabled={users.length === 0}
-                      >
-                        {teamMembers.filter((membership) => membership.status === 'approved').map((membership) => (
-                          <MenuItem key={membership.user} value={membership.username}>{membership.username}</MenuItem>
-                        ))}
-                      </TextField>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                      <TextField
-                        fullWidth
-                        label="Trivia topic"
-                        value={masterCycle.topic}
-                        onChange={(event) => setMasterCycle((current) => ({ ...current, topic: event.target.value }))}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={2}>
-                      <TextField
-                        fullWidth
-                        type="date"
-                        label="Start date"
-                        InputLabelProps={{ shrink: true }}
-                        value={masterCycle.start_date}
-                        onChange={(event) => setMasterCycle((current) => ({
-                          ...current,
-                          start_date: event.target.value,
-                          end_date: addDays(event.target.value, 13),
-                        }))}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={2}>
-                      <TextField
-                        fullWidth
-                        type="date"
-                        label="End date"
-                        InputLabelProps={{ shrink: true }}
-                        value={masterCycle.end_date}
-                        onChange={(event) => setMasterCycle((current) => ({ ...current, end_date: event.target.value }))}
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={2}>
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        sx={{ height: '100%' }}
-                        onClick={handleCreateMasterCycle}
-                        disabled={!masterCycle.master_username || !masterCycle.topic.trim()}
-                      >
-                        Add master
-                      </Button>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid> : null}
+            {canManageSelectedTeam ? (
+              <MasterAssignment
+                team={selectedTeam}
+                members={teamMembers}
+                cycle={masterCycle}
+                setCycle={setMasterCycle}
+                onCreate={handleCreateMasterCycle}
+              />
+            ) : null}
 
             {createdUser.is_staff && dashboardView === 'admin' ? (
-              <Grid item xs={12}>
-                <Card sx={{ borderRadius: 4 }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Platform user management
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Invite new accounts by email or remove accounts that have no protected master-cycle history.
-                    </Typography>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
-                      <TextField
-                        label="New username"
-                        value={managedUsername}
-                        onChange={(event) => setManagedUsername(event.target.value)}
-                        fullWidth
-                      />
-                      <TextField
-                        label="Email"
-                        type="email"
-                        value={managedEmail}
-                        onChange={(event) => setManagedEmail(event.target.value)}
-                        fullWidth
-                      />
-                      <Button
-                        variant="contained"
-                        onClick={handleMasterAddUser}
-                        disabled={!managedUsername.trim() || !managedEmail.trim()}
-                        sx={{ minWidth: 140 }}
-                      >
-                        Add user
-                      </Button>
-                    </Stack>
-                    <List disablePadding>
-                      {users.map((user) => (
-                        <ListItem
-                          key={user.id}
-                          disableGutters
-                          secondaryAction={(
-                            <Button
-                              color="error"
-                              onClick={() => handleRemoveUser(user)}
-                              disabled={user.id === createdUser.id}
-                            >
-                              Remove
-                            </Button>
-                          )}
-                        >
-                          <ListItemText
-                            primary={user.username}
-                            secondary={user.id === createdUser.id ? 'Current master' : null}
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
-                  </CardContent>
-                </Card>
-              </Grid>
+              <UserManagement
+                currentUser={createdUser}
+                users={users}
+                username={managedUsername}
+                setUsername={setManagedUsername}
+                email={managedEmail}
+                setEmail={setManagedEmail}
+                onAdd={handleMasterAddUser}
+                onRemove={handleRemoveUser}
+              />
             ) : null}
 
-            {manageableCycles.length > 0 ? (
-              <Grid item xs={12}>
-                <Card sx={{ borderRadius: 4 }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>Master trivia builder</Typography>
-                    <Stack spacing={2}>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} md={4}>
-                          <TextField select fullWidth label="Master cycle" value={builder.cycleId} onChange={(event) => setBuilder((current) => ({ ...current, cycleId: event.target.value, sessionId: '', questions: [] }))}>
-                            {manageableCycles.map((cycle) => <MenuItem key={cycle.id} value={String(cycle.id)}>{cycle.topic} · {cycle.master_name}</MenuItem>)}
-                          </TextField>
-                        </Grid>
-                        <Grid item xs={12} md={4}>
-                          <TextField select fullWidth label="Edit existing draft" value={builder.sessionId} onChange={(event) => handleLoadDraft(event.target.value)}>
-                            <MenuItem value="">New draft</MenuItem>
-                            {manageableCycles.flatMap((cycle) => cycle.trivia_sessions).filter((session) => session.status === 'draft').map((session) => (
-                              <MenuItem key={session.id} value={String(session.id)}>{session.title}</MenuItem>
-                            ))}
-                          </TextField>
-                        </Grid>
-                        <Grid item xs={12} md={4}>
-                          <TextField fullWidth label="Trivia title" value={builder.title} onChange={(event) => setBuilder((current) => ({ ...current, title: event.target.value }))} />
-                        </Grid>
-                      </Grid>
-                      <Divider />
-                      <TextField fullWidth label="Question" value={builder.prompt} onChange={(event) => setBuilder((current) => ({ ...current, prompt: event.target.value }))} />
-                      <Grid container spacing={2}>
-                        {builder.choices.map((choice, index) => (
-                          <Grid item xs={12} sm={6} key={index}>
-                            <TextField
-                              fullWidth
-                              label={`Choice ${index + 1}`}
-                              value={choice}
-                              onChange={(event) => setBuilder((current) => ({
-                                ...current,
-                                choices: current.choices.map((item, itemIndex) => itemIndex === index ? event.target.value : item),
-                              }))}
-                            />
-                          </Grid>
-                        ))}
-                      </Grid>
-                      <TextField select fullWidth label="Correct choice" value={builder.correct_choice} onChange={(event) => setBuilder((current) => ({ ...current, correct_choice: event.target.value }))}>
-                        {builder.choices.filter(Boolean).map((choice) => <MenuItem key={choice} value={choice}>{choice}</MenuItem>)}
-                      </TextField>
-                      <TextField fullWidth label="Explanation" value={builder.explanation} onChange={(event) => setBuilder((current) => ({ ...current, explanation: event.target.value }))} />
-                      <Button variant="outlined" onClick={handleAddQuestion}>Add question to draft</Button>
-                      <List dense>
-                        {builder.questions.map((question, index) => (
-                          <ListItem key={`${question.prompt}-${index}`} secondaryAction={(
-                            <Button color="error" onClick={() => setBuilder((current) => ({ ...current, questions: current.questions.filter((_, itemIndex) => itemIndex !== index) }))}>Remove</Button>
-                          )}>
-                            <ListItemText primary={`${index + 1}. ${question.prompt}`} secondary={`Correct: ${question.correct_choice}`} />
-                          </ListItem>
-                        ))}
-                      </List>
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                        <Button variant="contained" onClick={handleCreateTrivia} disabled={!builder.cycleId || builder.questions.length === 0}>
-                          {builder.sessionId ? 'Save draft changes' : 'Create manual draft'}
-                        </Button>
-                        <Button variant="outlined" onClick={handleGenerateTrivia} disabled={!builder.cycleId || Boolean(builder.sessionId)}>Generate AI draft</Button>
-                      </Stack>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ) : null}
-
-            <Grid item xs={12}>
-              <Card sx={{ borderRadius: 4 }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Live trivia session
-                  </Typography>
-                  {!activeSession ? (
-                    <Typography color="text.secondary">
-                      Load a trivia session to preview and answer it.
-                    </Typography>
-                  ) : (
-                    <Stack spacing={3}>
-                      <Box>
-                        <Typography variant="h5" fontWeight={800}>
-                          {activeSession.title}
-                        </Typography>
-                        <Typography color="text.secondary">Topic: {activeSession.topic}</Typography>
-                      </Box>
-
-                      {activeQuestions.map((question, index) => (
-                        <Paper key={question.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-                          <Typography fontWeight={700} gutterBottom>
-                            Q{index + 1}. {question.prompt}
-                          </Typography>
-                          <RadioGroup
-                            value={selectedChoices[question.id] ?? question.choices?.[0] ?? 'Option A'}
-                            onChange={(event) =>
-                              setSelectedChoices((current) => ({
-                                ...current,
-                                [question.id]: event.target.value,
-                              }))
-                            }
-                          >
-                            {(question.choices?.length ? question.choices : sampleChoices).map((choice) => (
-                              <Box key={choice} sx={{ display: 'flex', alignItems: 'center' }}>
-                                <Radio value={choice} />
-                                <Typography>{choice}</Typography>
-                              </Box>
-                            ))}
-                          </RadioGroup>
-                        </Paper>
-                      ))}
-
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                        <Button variant="contained" onClick={handleSubmitAnswer} disabled={activeSession.status !== 'live'}>
-                          Submit answer
-                        </Button>
-                        {canManageActiveSession && activeSession.status === 'draft' ? (
-                          <Button variant="outlined" onClick={handlePublishSession}>Publish session</Button>
-                        ) : null}
-                        {canManageActiveSession && activeSession.status === 'live' ? (
-                          <Button variant="outlined" onClick={handleEvaluateSession}>Close and evaluate</Button>
-                        ) : null}
-                      </Stack>
-                    </Stack>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
+            <TriviaBuilder
+              builder={builder}
+              cycles={manageableCycles}
+              setBuilder={setBuilder}
+              onLoadDraft={handleLoadDraft}
+              onAddQuestion={handleAddQuestion}
+              onSave={handleCreateTrivia}
+              onGenerate={handleGenerateTrivia}
+            />
+            <LiveTrivia
+              session={activeSession}
+              questions={activeQuestions}
+              choices={selectedChoices}
+              setChoices={setSelectedChoices}
+              canManage={canManageActiveSession}
+              onSubmit={handleSubmitAnswer}
+              onPublish={handlePublishSession}
+              onEvaluate={handleEvaluateSession}
+            />
           </Grid>
         </Container>
       </Box>

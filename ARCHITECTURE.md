@@ -39,7 +39,8 @@ daily-trivia/
 │   └── trivia_app/
 │       ├── models.py         # Persistent domain model
 │       ├── serializers.py    # Request validation and response shapes
-│       ├── views.py          # Use cases, permissions, and transactions
+│       ├── api/              # Auth, team/admin, trivia, and shared policies
+│       ├── views.py          # Compatibility exports for API modules
 │       ├── urls.py           # REST endpoint mapping
 │       ├── services/
 │       │   └── ai_generator.py
@@ -47,7 +48,9 @@ daily-trivia/
 │       └── tests.py          # Authentication and team/trivia workflows
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx           # UI, client state, and interaction handlers
+│   │   ├── App.jsx           # Application state and feature orchestration
+│   │   ├── components/       # Focused authentication, admin, team, and trivia UI
+│   │   ├── utils/            # Shared frontend utilities
 │   │   ├── api.js            # HTTP client and token persistence
 │   │   ├── main.jsx          # React entry point and Material UI theme
 │   │   └── styles.css        # Global visual system and interactions
@@ -63,7 +66,7 @@ daily-trivia/
 
 The frontend is a React 18 application built by Vite. Material UI supplies components and theming.
 
-`App.jsx` currently owns the application state and all major screens. Important state groups include:
+`App.jsx` owns application-level state and coordinates focused feature components. Important state groups include:
 
 - Authentication: mode, email, username, names, verification code, and authenticated user.
 - Team context: available teams, selected team, invite code, members, and analytics.
@@ -85,7 +88,14 @@ The startup flow checks for a token in `localStorage`. If present, it calls `/au
 
 The backend uses Django 5 and Django REST Framework. It is organized as a single Django application, `trivia_app`.
 
-The views are function-based API handlers. They combine:
+The API uses function-based handlers organized by domain:
+
+- `api/auth.py` handles email codes, identity restoration, and logout.
+- `api/teams.py` handles platform users, teams, membership, notifications, and analytics.
+- `api/trivia.py` handles cycles, drafts, publication, answers, evaluation, and leaderboards.
+- `api/common.py` contains shared lookup and authorization policies.
+
+The handlers combine:
 
 - Authentication and authorization checks.
 - Serializer-based input validation.
@@ -353,8 +363,8 @@ The frontend currently uses the Vite production build as its automated validatio
 
 The current structure is appropriate for an MVP: it is small, direct, and keeps business behavior easy to trace. As the product grows, the following areas are likely refactoring boundaries:
 
-1. **Frontend decomposition:** `App.jsx` owns most state and rendering. Split authentication, team administration, trivia play, builder, and platform administration into components and feature hooks.
-2. **Backend service layer:** workflow logic currently lives in views. Extract membership, publication, evaluation, and notification services when those workflows gain more rules.
+1. **Frontend feature hooks:** rendering is split into feature components, while `App.jsx` still owns most state and side effects. Extract feature hooks as workflows grow.
+2. **Backend service layer:** workflow logic is separated by API domain but still lives in handlers. Extract membership, publication, evaluation, and notification services when those workflows gain more rules.
 3. **API schema:** add OpenAPI generation and explicit request serializers for authentication and workflow commands.
 4. **Database invariants:** email uniqueness is checked in application code rather than enforced by a case-insensitive database constraint.
 5. **Token storage:** browser `localStorage` is simple but exposed to injected JavaScript. A hardened production design could use secure, HTTP-only cookies with CSRF protection.
@@ -369,7 +379,7 @@ The current structure is appropriate for an MVP: it is small, direct, and keeps 
 1. [PLANNING.md](PLANNING.md) for the product and roles.
 2. [backend/trivia_app/models.py](backend/trivia_app/models.py) for the domain vocabulary.
 3. [backend/trivia_app/urls.py](backend/trivia_app/urls.py) for available operations.
-4. [backend/trivia_app/views.py](backend/trivia_app/views.py) for permissions and workflows.
+4. [backend/trivia_app/api/](backend/trivia_app/api/) for permissions and workflows by domain.
 5. [backend/trivia_app/serializers.py](backend/trivia_app/serializers.py) for API data shapes.
 6. [frontend/src/api.js](frontend/src/api.js) for frontend/backend integration.
 7. [frontend/src/App.jsx](frontend/src/App.jsx) for the current user experience.
