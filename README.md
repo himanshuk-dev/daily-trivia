@@ -19,6 +19,8 @@ The application supports passwordless email-code authentication, multiple teams,
 
 See [PLANNING.md](PLANNING.md) for the product requirements, role model, delivery plan, and implementation status.
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the system design, data model, request flows, API map, permissions, and contributor reading guide.
+
 ## Technology stack
 
 - Frontend: React 18, Vite 5, and Material UI
