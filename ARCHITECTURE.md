@@ -218,12 +218,13 @@ Platform administrators bypass team membership checks. Invite codes are removed 
 
 ## 8. Team and membership flow
 
-1. A platform administrator creates a team.
-2. The creator automatically receives an approved team-admin membership.
+1. A platform administrator creates a team and selects an active user as its initial team admin. If no user is selected, the creator is used.
+2. The selected user automatically receives an approved team-admin membership.
 3. Another authenticated user submits the team's invite code.
 4. The membership becomes approved immediately or pending, depending on `approval_required`.
 5. A team administrator can approve, reject, promote, demote, or remove members.
-6. Only approved members can view or answer the team's trivia.
+6. A team administrator can assign themselves or another approved member as master for a trivia cycle.
+7. Only approved members can view or answer the team's trivia.
 
 A rejected user may use the invite code again. The membership returns to pending or approved according to the team's current admission policy.
 

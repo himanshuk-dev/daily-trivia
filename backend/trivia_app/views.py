@@ -172,17 +172,27 @@ def team_list_create(request):
         return Response({'detail': 'Only a platform admin can create teams.'}, status=status.HTTP_403_FORBIDDEN)
 
     payload = request.data.copy()
+    initial_admin_id = payload.pop('initial_admin_id', None)
+    initial_admin = request.user
+    if initial_admin_id:
+        initial_admin = User.objects.filter(pk=initial_admin_id, is_active=True).first()
+        if not initial_admin:
+            return Response(
+                {'initial_admin_id': ['Select an active user as the initial team admin.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
     payload['slug'] = payload.get('slug') or slugify(payload.get('name', ''))
     serializer = TeamSerializer(data=payload, context={'request': request})
     serializer.is_valid(raise_exception=True)
-    team = serializer.save(created_by=request.user)
-    TeamMembership.objects.create(
-        team=team,
-        user=request.user,
-        role=TeamMembership.Role.TEAM_ADMIN,
-        status=TeamMembership.Status.APPROVED,
-        approved_at=timezone.now(),
-    )
+    with transaction.atomic():
+        team = serializer.save(created_by=request.user)
+        TeamMembership.objects.create(
+            team=team,
+            user=initial_admin,
+            role=TeamMembership.Role.TEAM_ADMIN,
+            status=TeamMembership.Status.APPROVED,
+            approved_at=timezone.now(),
+        )
     return Response(TeamSerializer(team, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 

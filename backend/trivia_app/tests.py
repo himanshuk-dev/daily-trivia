@@ -7,6 +7,8 @@ from rest_framework.authtoken.models import Token
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from trivia_app.models import TeamMembership
+
 
 @override_settings(
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
@@ -61,6 +63,34 @@ class TeamTriviaWorkflowTests(APITestCase):
     def authenticate(self, user):
         token, _ = Token.objects.get_or_create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def test_platform_admin_assigns_initial_team_admin_who_can_assign_self_as_master(self):
+        team_admin = User.objects.create_user(username='team-admin', email='team-admin@example.com')
+        self.authenticate(self.admin)
+        response = self.client.post('/api/teams/', {
+            'name': 'Policy',
+            'approval_required': True,
+            'initial_admin_id': team_admin.id,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        team_id = response.data['id']
+
+        membership = TeamMembership.objects.get(team_id=team_id, user=team_admin)
+        self.assertEqual(membership.role, TeamMembership.Role.TEAM_ADMIN)
+        self.assertEqual(membership.status, TeamMembership.Status.APPROVED)
+        self.assertFalse(TeamMembership.objects.filter(team_id=team_id, user=self.admin).exists())
+
+        self.authenticate(team_admin)
+        response = self.client.post('/api/master-cycles/', {
+            'team': team_id,
+            'master_username': team_admin.username,
+            'topic': 'Canada',
+            'start_date': '2026-07-28',
+            'end_date': '2026-08-10',
+            'status': 'active',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['master_name'], team_admin.username)
 
     def test_team_approval_manual_trivia_and_team_leaderboard(self):
         self.authenticate(self.admin)

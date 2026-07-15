@@ -198,9 +198,9 @@ The complete template is in [.env.example](.env.example). Important settings inc
 
 1. A user registers with their first name, last name, unique username, and email address.
 2. The user verifies the email code printed by the development backend.
-3. A platform or team administrator creates and manages a team.
+3. A platform administrator creates a team and assigns its initial team administrator.
 4. Members join using the team's invite code.
-5. A trivia master is assigned to a team cycle and selects its topic.
+5. A team administrator assigns themselves or another approved member as master for a team cycle and selects its topic.
 6. The master creates questions manually or generates an AI draft.
 7. The master reviews and publishes the trivia session.
 8. Approved team members submit their answers.
