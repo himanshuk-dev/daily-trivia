@@ -68,7 +68,7 @@ Build a trivia app where users create usernames, a manually selected master choo
 
 ## Role Model
 - Platform Admin: manages platform users, teams, and other platform admins.
-- Team Admin: is assigned per team, manages that team's settings, invite policy, membership requests, and members, and can assign themselves or another approved member as cycle master.
+- Team Admin: is assigned per team, manages that team's settings, invite policy, membership requests, and members, can directly add active users, and can assign themselves or another approved member as cycle master.
 - Master: creates, reviews, and publishes trivia for an assigned team cycle.
 - Member: participates in trivia for approved team memberships.
 

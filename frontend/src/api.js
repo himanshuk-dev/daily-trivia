@@ -42,6 +42,10 @@ export const api = {
   createTeam: (payload) => request('/teams/', { method: 'POST', body: JSON.stringify(payload) }),
   joinTeam: (inviteCode) => request('/teams/join/', { method: 'POST', body: JSON.stringify({ invite_code: inviteCode }) }),
   getTeamMembers: (teamId) => request(`/teams/${teamId}/members/`),
+  addTeamMember: (teamId, payload) => request(`/teams/${teamId}/members/`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
   getTeamAnalytics: (teamId) => request(`/teams/${teamId}/analytics/`),
   updateTeamMember: (teamId, membershipId, payload) => request(`/teams/${teamId}/members/${membershipId}/`, {
     method: 'PATCH',

@@ -66,6 +66,7 @@ class TeamTriviaWorkflowTests(APITestCase):
 
     def test_platform_admin_assigns_initial_team_admin_who_can_assign_self_as_master(self):
         team_admin = User.objects.create_user(username='team-admin', email='team-admin@example.com')
+        direct_member = User.objects.create_user(username='direct-member', email='direct-member@example.com')
         self.authenticate(self.admin)
         response = self.client.post('/api/teams/', {
             'name': 'Policy',
@@ -81,6 +82,20 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertFalse(TeamMembership.objects.filter(team_id=team_id, user=self.admin).exists())
 
         self.authenticate(team_admin)
+        response = self.client.post(f'/api/teams/{team_id}/members/', {
+            'user_id': direct_member.id,
+            'role': 'member',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['status'], TeamMembership.Status.APPROVED)
+        self.assertEqual(response.data['role'], TeamMembership.Role.MEMBER)
+
+        response = self.client.post(f'/api/teams/{team_id}/members/', {
+            'user_id': direct_member.id,
+            'role': 'member',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
         response = self.client.post('/api/master-cycles/', {
             'team': team_id,
             'master_username': team_admin.username,

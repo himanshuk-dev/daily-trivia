@@ -200,6 +200,7 @@ The complete template is in [.env.example](.env.example). Important settings inc
 2. The user verifies the email code printed by the development backend.
 3. A platform administrator creates a team and assigns its initial team administrator.
 4. Members join using the team's invite code.
+   Platform and team administrators can also add an existing active user directly as an approved member or team administrator.
 5. A team administrator assigns themselves or another approved member as master for a team cycle and selects its topic.
 6. The master creates questions manually or generates an AI draft.
 7. The master reviews and publishes the trivia session.

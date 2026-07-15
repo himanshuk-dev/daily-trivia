@@ -223,8 +223,9 @@ Platform administrators bypass team membership checks. Invite codes are removed 
 3. Another authenticated user submits the team's invite code.
 4. The membership becomes approved immediately or pending, depending on `approval_required`.
 5. A team administrator can approve, reject, promote, demote, or remove members.
-6. A team administrator can assign themselves or another approved member as master for a trivia cycle.
-7. Only approved members can view or answer the team's trivia.
+6. A platform or team administrator can directly add an active platform user as an immediately approved member or team admin.
+7. A team administrator can assign themselves or another approved member as master for a trivia cycle.
+8. Only approved members can view or answer the team's trivia.
 
 A rejected user may use the invite code again. The membership returns to pending or approved according to the team's current admission policy.
 
@@ -298,7 +299,7 @@ All routes are prefixed with `/api/`. Except for requesting and verifying an ema
 | --- | --- | --- |
 | `GET`, `POST` | `/teams/` | List accessible teams or create a team |
 | `POST` | `/teams/join/` | Join using an invite code |
-| `GET` | `/teams/{id}/members/` | List team memberships |
+| `GET`, `POST` | `/teams/{id}/members/` | List memberships or directly add an approved member/team admin |
 | `PATCH`, `DELETE` | `/teams/{teamId}/members/{membershipId}/` | Manage one membership |
 | `GET` | `/teams/{id}/analytics/` | Return summary counts |
 | `GET` | `/leaderboard/?team={id}` | Return team trophy ranking |

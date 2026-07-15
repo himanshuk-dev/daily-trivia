@@ -60,6 +60,7 @@ export default function App() {
   const [selectedTeamId, setSelectedTeamId] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   const [teamMembers, setTeamMembers] = useState([])
+  const [newMembership, setNewMembership] = useState({ user_id: '', role: 'member' })
   const [teamAnalytics, setTeamAnalytics] = useState(null)
   const [notifications, setNotifications] = useState([])
   const [newTeam, setNewTeam] = useState({ name: '', approval_required: true, initial_admin_id: '' })
@@ -127,6 +128,10 @@ export default function App() {
   }, [createdUser, selectedTeamId, teams])
 
   useEffect(() => {
+    setNewMembership({ user_id: '', role: 'member' })
+  }, [selectedTeamId])
+
+  useEffect(() => {
     if (createdUser && !masterCycle.master_username) {
       setMasterCycle((current) => ({ ...current, master_username: createdUser.username }))
     }
@@ -141,6 +146,10 @@ export default function App() {
     () => cycles.filter((cycle) => String(cycle.team) === String(selectedTeamId)),
     [cycles, selectedTeamId],
   )
+  const availableTeamUsers = useMemo(() => {
+    const memberIds = new Set(teamMembers.map((membership) => String(membership.user)))
+    return users.filter((user) => !memberIds.has(String(user.id)))
+  }, [teamMembers, users])
   const canManageSelectedTeam = createdUser?.is_staff || selectedTeam?.membership_role === 'team_admin'
   const manageableCycles = useMemo(
     () => cycles.filter((cycle) => createdUser?.is_staff || cycle.master_name === createdUser?.username),
@@ -238,6 +247,23 @@ export default function App() {
       const updated = await api.updateTeamMember(selectedTeamId, membership.id, payload)
       setTeamMembers((current) => current.map((item) => (item.id === updated.id ? updated : item)))
       setMessage(`Updated ${updated.username}.`)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const handleAddTeamMember = async () => {
+    try {
+      const membership = await api.addTeamMember(selectedTeamId, newMembership)
+      setTeamMembers((current) => [...current, membership].sort((a, b) => a.username.localeCompare(b.username)))
+      setTeams((current) => current.map((team) => (
+        String(team.id) === String(selectedTeamId)
+          ? { ...team, member_count: team.member_count + 1 }
+          : team
+      )))
+      setTeamAnalytics((current) => current ? { ...current, approved_members: current.approved_members + 1 } : current)
+      setNewMembership({ user_id: '', role: 'member' })
+      setMessage(`Added ${membership.username} to ${selectedTeam.name} as ${membership.role === 'team_admin' ? 'team admin' : 'member'}.`)
     } catch (error) {
       setMessage(error.message)
     }
@@ -782,6 +808,47 @@ export default function App() {
                     )}
 
                     <Typography variant="subtitle1" fontWeight={900}>People and roles</Typography>
+                    <Paper variant="outlined" sx={{ p: 2, my: 1.5, borderRadius: 3, bgcolor: '#fbf8ff' }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Add an existing user</Typography>
+                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                        <TextField
+                          select
+                          fullWidth
+                          label="User"
+                          value={newMembership.user_id}
+                          onChange={(event) => setNewMembership((current) => ({ ...current, user_id: event.target.value }))}
+                        >
+                          {availableTeamUsers.length === 0 ? (
+                            <MenuItem value="" disabled>All active users are already on this team</MenuItem>
+                          ) : availableTeamUsers.map((user) => (
+                            <MenuItem key={user.id} value={String(user.id)}>
+                              {[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username} · {user.email}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select
+                          label="Team role"
+                          value={newMembership.role}
+                          onChange={(event) => setNewMembership((current) => ({ ...current, role: event.target.value }))}
+                          sx={{ minWidth: { md: 220 } }}
+                        >
+                          <MenuItem value="member">Member</MenuItem>
+                          <MenuItem value="team_admin">Team admin</MenuItem>
+                        </TextField>
+                        <Button
+                          variant="contained"
+                          onClick={handleAddTeamMember}
+                          disabled={!newMembership.user_id}
+                          sx={{ minWidth: 150 }}
+                        >
+                          Add to team
+                        </Button>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        Directly added users are approved immediately. They can access this team the next time their dashboard refreshes.
+                      </Typography>
+                    </Paper>
                     <List disablePadding>
                       {teamMembers.map((membership) => (
                         <ListItem

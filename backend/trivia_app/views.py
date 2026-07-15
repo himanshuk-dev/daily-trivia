@@ -216,12 +216,34 @@ def team_join(request):
     return Response(TeamMembershipSerializer(membership).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def team_members(request, pk: int):
     team = get_object_or_404(Team, pk=pk)
     if not is_team_admin(request.user, team):
-        return Response({'detail': 'Only a team admin can view team membership.'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'detail': 'Only a team admin can manage team membership.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'POST':
+        user = User.objects.filter(pk=request.data.get('user_id'), is_active=True).first()
+        if not user:
+            return Response({'user_id': ['Select an active user.']}, status=status.HTTP_400_BAD_REQUEST)
+        role = request.data.get('role', TeamMembership.Role.MEMBER)
+        if role not in TeamMembership.Role.values:
+            return Response({'role': ['Select member or team admin.']}, status=status.HTTP_400_BAD_REQUEST)
+        if TeamMembership.objects.filter(team=team, user=user).exists():
+            return Response(
+                {'user_id': ['This user already belongs to the team.']},
+                status=status.HTTP_409_CONFLICT,
+            )
+        membership = TeamMembership.objects.create(
+            team=team,
+            user=user,
+            role=role,
+            status=TeamMembership.Status.APPROVED,
+            approved_at=timezone.now(),
+        )
+        return Response(TeamMembershipSerializer(membership).data, status=status.HTTP_201_CREATED)
+
     memberships = team.memberships.select_related('user').order_by('status', 'user__username')
     return Response(TeamMembershipSerializer(memberships, many=True).data)
 
