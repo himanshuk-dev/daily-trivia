@@ -167,18 +167,10 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
         sprint_start = timezone.localdate()
-        daily_topics = [
-            {
-                'date': (sprint_start + timedelta(days=index)).isoformat(),
-                'topic': 'Canadian History' if index == 0 else f'Topic {index + 1}',
-            }
-            for index in range(14)
-        ]
         response = self.client.post('/api/master-cycles/', {
             'team': team_id,
             'master_username': team_admin.username,
             'topic': 'Canada Sprint',
-            'daily_topics': daily_topics,
             'start_date': sprint_start.isoformat(),
             'end_date': (sprint_start + timedelta(days=13)).isoformat(),
             'status': 'active',
@@ -194,8 +186,13 @@ class TeamTriviaWorkflowTests(APITestCase):
             explanation='Ottawa is the capital of Canada.',
         )
         with patch('trivia_app.api.trivia.TriviaGenerator.generate', return_value=generated) as generate:
-            response = self.client.post(f'/api/master-cycles/{cycle_id}/generate-trivia/', format='json')
-        generate.assert_called_once_with('Canadian History')
+            response = self.client.post(
+                f'/api/master-cycles/{cycle_id}/generate-trivia/',
+                {'topic': 'Science'},
+                format='json',
+            )
+        generate.assert_called_once_with('Science')
+        self.assertEqual(response.data['topic'], 'Science')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['status'], TriviaSession.Status.LIVE)
         self.assertEqual(len(response.data['questions']), 1)

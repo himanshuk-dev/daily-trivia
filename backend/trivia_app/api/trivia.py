@@ -71,12 +71,8 @@ def master_cycle_generate_trivia(request, pk: int):
         (item.get('topic') for item in cycle.daily_topics if item.get('date') == scheduled_date),
         None,
     )
-    if cycle.daily_topics and not scheduled_topic:
-        return Response(
-            {'detail': f'No trivia topic is scheduled for {scheduled_date}.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    trivia_topic = scheduled_topic or cycle.topic
+    selected_topic = str(request.data.get('topic', '')).strip()
+    trivia_topic = selected_topic or scheduled_topic or cycle.topic
     title = request.data.get('title') or f'{trivia_topic} Daily Challenge'
     try:
         question = TriviaGenerator().generate(trivia_topic)
