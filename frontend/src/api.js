@@ -35,11 +35,14 @@ export const api = {
     method: 'PATCH',
     body: JSON.stringify({ is_admin: isAdmin }),
   }),
+  getPlatformOverview: () => request('/admin/overview/'),
   deleteUser: (userId) => request(`/users/${userId}/`, {
     method: 'DELETE',
   }),
   getTeams: () => request('/teams/'),
   createTeam: (payload) => request('/teams/', { method: 'POST', body: JSON.stringify(payload) }),
+  updateTeam: (teamId, payload) => request(`/teams/${teamId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteTeam: (teamId) => request(`/teams/${teamId}/`, { method: 'DELETE' }),
   joinTeam: (inviteCode) => request('/teams/join/', { method: 'POST', body: JSON.stringify({ invite_code: inviteCode }) }),
   getTeamMembers: (teamId) => request(`/teams/${teamId}/members/`),
   addTeamMember: (teamId, payload) => request(`/teams/${teamId}/members/`, {

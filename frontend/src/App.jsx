@@ -23,16 +23,23 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material'
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import { api } from './api'
 import { AppHeader } from './components/AppHeader'
 import { AuthScreen } from './components/AuthScreen'
 import { LiveTrivia } from './components/LiveTrivia'
 import { MasterAssignment } from './components/MasterAssignment'
 import { PlatformAdminPanel } from './components/PlatformAdminPanel'
+import { PlatformOverview } from './components/PlatformOverview'
 import { TeamAdministration } from './components/TeamAdministration'
 import { TriviaBuilder } from './components/TriviaBuilder'
 import { UserManagement } from './components/UserManagement'
 import { addDays, formatDate } from './utils/dates'
+
+const buildDailyTopics = (startDate) => Array.from({ length: 14 }, (_, index) => ({
+  date: addDays(startDate, index),
+  topic: '',
+}))
 
 export default function App() {
   const today = useMemo(() => formatDate(new Date()), [])
@@ -55,6 +62,7 @@ export default function App() {
   const [teamMembers, setTeamMembers] = useState([])
   const [newMembership, setNewMembership] = useState({ user_id: '', role: 'member' })
   const [teamAnalytics, setTeamAnalytics] = useState(null)
+  const [platformOverview, setPlatformOverview] = useState(null)
   const [notifications, setNotifications] = useState([])
   const [newTeam, setNewTeam] = useState({ name: '', approval_required: true, initial_admin_id: '' })
   const [leaderboard, setLeaderboard] = useState([])
@@ -64,6 +72,7 @@ export default function App() {
     topic: '',
     start_date: today,
     end_date: addDays(today, 13),
+    daily_topics: buildDailyTopics(today),
   })
   const [activeSession, setActiveSession] = useState(null)
   const [selectedChoices, setSelectedChoices] = useState({})
@@ -96,20 +105,95 @@ export default function App() {
     api.getUsers().then(setUsers).catch(() => setUsers([]))
     api.getTeams().then((data) => {
       setTeams(data)
-      const approvedTeam = data.find((team) => team.membership_status === 'approved')
-      if (approvedTeam) setSelectedTeamId(String(approvedTeam.id))
+      const defaultTeam = createdUser.is_staff
+        ? data[0]
+        : data.find((team) => team.membership_status === 'approved')
+      if (defaultTeam) setSelectedTeamId(String(defaultTeam.id))
     }).catch(() => setTeams([]))
     api.getMasterCycles().then(setCycles).catch(() => setCycles([]))
     api.getNotifications().then(setNotifications).catch(() => setNotifications([]))
   }, [createdUser])
 
   useEffect(() => {
+    if (!createdUser?.is_staff || dashboardView !== 'admin') return
+    api.getPlatformOverview().then(setPlatformOverview).catch((error) => setMessage(error.message))
+  }, [createdUser, dashboardView])
+
+  useEffect(() => {
+    if (!createdUser) return undefined
+
+    let refreshInProgress = false
+    const refreshLiveData = async () => {
+      if (refreshInProgress) return
+      refreshInProgress = true
+      try {
+        const requests = [
+          api.getTeams().then((data) => {
+            setTeams(data)
+            if (!selectedTeamId) {
+              const defaultTeam = createdUser.is_staff
+                ? data[0]
+                : data.find((team) => team.membership_status === 'approved')
+              if (defaultTeam) setSelectedTeamId(String(defaultTeam.id))
+            }
+          }),
+          api.getMasterCycles().then(setCycles),
+          api.getNotifications().then(setNotifications),
+        ]
+
+        if (createdUser.is_staff) {
+          requests.push(api.getLeaderboard().then(setLeaderboard))
+        } else if (selectedTeamId) {
+          requests.push(api.getTeamLeaderboard(selectedTeamId).then(setLeaderboard))
+        }
+        if (selectedTeamId) {
+          const team = teams.find((candidate) => String(candidate.id) === String(selectedTeamId))
+          if (createdUser.is_staff || team?.membership_role === 'team_admin') {
+            requests.push(api.getTeamMembers(selectedTeamId).then(setTeamMembers))
+            requests.push(api.getTeamAnalytics(selectedTeamId).then(setTeamAnalytics))
+          }
+        }
+        if (activeSession?.id) {
+          requests.push(api.getTriviaSession(activeSession.id).then(setActiveSession))
+        }
+        if (createdUser.is_staff && dashboardView === 'admin') {
+          requests.push(api.getPlatformOverview().then(setPlatformOverview))
+        }
+
+        await Promise.allSettled(requests)
+      } finally {
+        refreshInProgress = false
+      }
+    }
+
+    const intervalId = window.setInterval(refreshLiveData, 10000)
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') refreshLiveData()
+    }
+    window.addEventListener('focus', refreshOnFocus)
+    document.addEventListener('visibilitychange', refreshOnFocus)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', refreshOnFocus)
+      document.removeEventListener('visibilitychange', refreshOnFocus)
+    }
+  }, [activeSession?.id, createdUser, dashboardView, selectedTeamId, teams])
+
+  useEffect(() => {
     if (!selectedTeamId) {
-      setLeaderboard([])
+      if (createdUser?.is_staff) {
+        api.getLeaderboard().then(setLeaderboard).catch(() => setLeaderboard([]))
+      } else {
+        setLeaderboard([])
+      }
       setTeamMembers([])
       return
     }
-    api.getTeamLeaderboard(selectedTeamId).then(setLeaderboard).catch(() => setLeaderboard([]))
+    const leaderboardRequest = createdUser?.is_staff
+      ? api.getLeaderboard()
+      : api.getTeamLeaderboard(selectedTeamId)
+    leaderboardRequest.then(setLeaderboard).catch(() => setLeaderboard([]))
     const team = teams.find((candidate) => String(candidate.id) === String(selectedTeamId))
     if (createdUser?.is_staff || team?.membership_role === 'team_admin') {
       api.getTeamMembers(selectedTeamId).then(setTeamMembers).catch(() => setTeamMembers([]))
@@ -138,6 +222,16 @@ export default function App() {
   const selectedTeamCycles = useMemo(
     () => cycles.filter((cycle) => String(cycle.team) === String(selectedTeamId)),
     [cycles, selectedTeamId],
+  )
+  const publishedTeamSessions = useMemo(
+    () => (createdUser?.is_staff ? cycles : selectedTeamCycles)
+      .flatMap((cycle) => (cycle.trivia_sessions ?? []).map((session) => ({
+        ...session,
+        team_name: teams.find((team) => String(team.id) === String(cycle.team))?.name,
+      })))
+      .filter((session) => session.status !== 'draft')
+      .sort((left, right) => new Date(right.publish_at ?? 0) - new Date(left.publish_at ?? 0)),
+    [createdUser, cycles, selectedTeamCycles, teams],
   )
   const availableTeamUsers = useMemo(() => {
     const memberIds = new Set(teamMembers.map((membership) => String(membership.user)))
@@ -202,8 +296,12 @@ export default function App() {
     try {
       const cycle = await api.createMasterCycle({ ...masterCycle, team: selectedTeamId, status: 'active' })
       setCycles((current) => [cycle, ...current])
-      setMasterCycle((current) => ({ ...current, topic: '' }))
-      setMessage(`${cycle.master_name} is now the master for ${cycle.topic}.`)
+      setMasterCycle((current) => ({
+        ...current,
+        topic: '',
+        daily_topics: buildDailyTopics(current.start_date),
+      }))
+      setMessage(`${cycle.master_name} is now the master for the ${cycle.topic} sprint.`)
     } catch (error) {
       setMessage(error.message)
     }
@@ -229,7 +327,67 @@ export default function App() {
       setSelectedTeamId(String(team.id))
       const assignedAdmin = users.find((user) => String(user.id) === String(newTeam.initial_admin_id))
       setNewTeam({ name: '', approval_required: true, initial_admin_id: '' })
+      setPlatformOverview(await api.getPlatformOverview())
       setMessage(`Created team ${team.name}${assignedAdmin ? ` with ${assignedAdmin.username} as team admin` : ''}. Invite code: ${team.invite_code}`)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const handleRefreshPlatformOverview = async () => {
+    try {
+      setPlatformOverview(await api.getPlatformOverview())
+      setMessage('Platform overview refreshed.')
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const handleEditTeam = async (team) => {
+    const name = window.prompt('Team name', team.name)
+    if (name === null) return
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      setMessage('Team name cannot be blank.')
+      return
+    }
+    try {
+      const updated = await api.updateTeam(team.id, { name: trimmedName })
+      setTeams((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      setPlatformOverview(await api.getPlatformOverview())
+      setMessage(`Updated team to ${updated.name}.`)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const handleToggleTeamApproval = async (team) => {
+    try {
+      const updated = await api.updateTeam(team.id, { approval_required: !team.approval_required })
+      setTeams((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      setPlatformOverview(await api.getPlatformOverview())
+      setMessage(`${updated.name} now ${updated.approval_required ? 'requires approval' : 'allows immediate joining'}.`)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  const handleDeleteTeam = async (team) => {
+    const confirmed = window.confirm(
+      `Delete ${team.name}? This permanently removes its memberships, trivia, answers, notifications, and trophies.`,
+    )
+    if (!confirmed) return
+    try {
+      await api.deleteTeam(team.id)
+      const [refreshedTeams, refreshedCycles, overview] = await Promise.all([
+        api.getTeams(), api.getMasterCycles(), api.getPlatformOverview(),
+      ])
+      setTeams(refreshedTeams)
+      setCycles(refreshedCycles)
+      setPlatformOverview(overview)
+      setSelectedTeamId(refreshedTeams[0] ? String(refreshedTeams[0].id) : '')
+      setActiveSession(null)
+      setMessage(`Deleted team ${team.name}.`)
     } catch (error) {
       setMessage(error.message)
     }
@@ -392,10 +550,10 @@ export default function App() {
   }
 
   const handleLoadFirstSession = async () => {
-    const teamCycle = cycles.find((cycle) => String(cycle.team) === String(selectedTeamId) && cycle.trivia_sessions?.length)
-    const preferredSession = teamCycle?.trivia_sessions?.find((session) => session.status === 'live')
-      ?? (createdUser?.is_staff || teamCycle?.master_name === createdUser?.username ? teamCycle?.trivia_sessions?.[0] : null)
-    const firstSessionId = preferredSession?.id
+    const openSession = publishedTeamSessions.find(
+      (session) => session.status === 'live' && (!session.close_at || new Date(session.close_at) > new Date()),
+    )
+    const firstSessionId = openSession?.id ?? publishedTeamSessions[0]?.id
     if (!firstSessionId) {
       setMessage('No trivia session available yet.')
       return
@@ -404,6 +562,17 @@ export default function App() {
     const session = await api.getTriviaSession(firstSessionId)
     setActiveSession(session)
     setMessage(`Loaded trivia session: ${session.title}`)
+  }
+
+  const handleLoadSession = async (sessionId) => {
+    try {
+      const session = await api.getTriviaSession(sessionId)
+      setActiveSession(session)
+      setSelectedChoices({})
+      setMessage(`Loaded trivia session: ${session.title}`)
+    } catch (error) {
+      setMessage(error.message)
+    }
   }
 
   const handlePublishSession = async () => {
@@ -515,13 +684,18 @@ export default function App() {
                           <Typography variant="body2" color="text.secondary">
                             {cycle.start_date} to {cycle.end_date}
                           </Typography>
+                          {cycle.sprint_winner ? (
+                            <Typography variant="body2" color="warning.dark" fontWeight={800}>
+                              {cycle.status === 'closed' || cycle.end_date < today ? 'Sprint winner' : 'Sprint leader'}: {cycle.sprint_winner.username} · 🏆 {cycle.sprint_winner.trophy_count}
+                            </Typography>
+                          ) : null}
                           <Divider sx={{ my: 1 }} />
                         </Box>
                       ))
                     )}
                   </List>
                   <Button sx={{ mt: 1 }} variant="outlined" onClick={handleLoadFirstSession}>
-                    Load first trivia session
+                    Load current or latest trivia
                   </Button>
                 </CardContent>
               </Card>
@@ -545,7 +719,13 @@ export default function App() {
                             <Typography fontWeight={700}>
                               #{index + 1} {entry.username}
                             </Typography>
-                            <Chip label={`${entry.trophy_count} trophies`} color="warning" />
+                            <Chip
+                              icon={<EmojiEventsIcon />}
+                              label={entry.trophy_count}
+                              color="warning"
+                              aria-label={`${entry.trophy_count} ${entry.trophy_count === 1 ? 'trophy' : 'trophies'}`}
+                              sx={{ fontWeight: 800 }}
+                            />
                           </Stack>
                         </Paper>
                       ))
@@ -588,14 +768,17 @@ export default function App() {
             </Grid>
 
             {createdUser.is_staff && dashboardView === 'admin' ? (
-              <PlatformAdminPanel
-                currentUser={createdUser}
-                users={users}
-                team={newTeam}
-                setTeam={setNewTeam}
-                onCreateTeam={handleCreateTeam}
-                onToggleAdmin={handleAdminToggle}
-              />
+              <>
+                <PlatformAdminPanel
+                  currentUser={createdUser}
+                  users={users}
+                  team={newTeam}
+                  setTeam={setNewTeam}
+                  onCreateTeam={handleCreateTeam}
+                  onToggleAdmin={handleAdminToggle}
+                />
+                <PlatformOverview overview={platformOverview} onRefresh={handleRefreshPlatformOverview} />
+              </>
             ) : null}
 
             {canManageSelectedTeam ? (
@@ -614,6 +797,9 @@ export default function App() {
                 onAddMember={handleAddTeamMember}
                 onUpdateMember={handleMembershipUpdate}
                 onRemoveMember={handleRemoveMembership}
+                onEditTeam={handleEditTeam}
+                onToggleTeamApproval={handleToggleTeamApproval}
+                onDeleteTeam={handleDeleteTeam}
               />
             ) : null}
 
@@ -651,6 +837,7 @@ export default function App() {
             />
             <LiveTrivia
               session={activeSession}
+              sessions={publishedTeamSessions}
               questions={activeQuestions}
               choices={selectedChoices}
               setChoices={setSelectedChoices}
@@ -658,6 +845,7 @@ export default function App() {
               onSubmit={handleSubmitAnswer}
               onPublish={handlePublishSession}
               onEvaluate={handleEvaluateSession}
+              onLoadSession={handleLoadSession}
             />
           </Grid>
         </Container>

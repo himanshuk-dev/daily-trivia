@@ -1,7 +1,11 @@
 import { Button, Card, CardContent, Divider, Grid, List, ListItem, ListItemText, MenuItem, Stack, TextField, Typography } from '@mui/material'
+import { formatDate } from '../utils/dates'
 
 export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQuestion, onSave, onGenerate }) {
   if (!cycles.length) return null
+  const selectedCycle = cycles.find((cycle) => String(cycle.id) === String(builder.cycleId))
+  const today = formatDate(new Date())
+  const todaysTopic = selectedCycle?.daily_topics?.find((item) => item.date === today)?.topic ?? selectedCycle?.topic
   return (
     <Grid item xs={12}>
       <Card sx={{ borderRadius: 4 }}><CardContent>
@@ -24,6 +28,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
             </Grid>
             <Grid item xs={12} md={4}><TextField fullWidth label="Trivia title" value={builder.title} onChange={(event) => setBuilder((current) => ({ ...current, title: event.target.value }))} /></Grid>
           </Grid>
+          {selectedCycle ? <Typography color="secondary.main" fontWeight={800}>Today’s scheduled topic: {todaysTopic || 'No topic scheduled for today'}</Typography> : null}
           <Divider />
           <TextField fullWidth label="Question" value={builder.prompt} onChange={(event) => setBuilder((current) => ({ ...current, prompt: event.target.value }))} />
           <Grid container spacing={2}>

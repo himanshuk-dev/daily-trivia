@@ -15,6 +15,9 @@ export function TeamAdministration({
   onAddMember,
   onUpdateMember,
   onRemoveMember,
+  onEditTeam,
+  onToggleTeamApproval,
+  onDeleteTeam,
 }) {
   if (!selectedTeam) return null
 
@@ -26,7 +29,12 @@ export function TeamAdministration({
             <Typography variant="h6">Team administration</Typography>
             <Typography color="text.secondary">Review each team’s administrators, masters, members, admission policy, and activity.</Typography>
           </Box>
-          <Chip color={selectedTeam.approval_required ? 'warning' : 'success'} label={selectedTeam.approval_required ? 'Approval required' : 'Immediate approval'} />
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+            <Chip color={selectedTeam.approval_required ? 'warning' : 'success'} label={selectedTeam.approval_required ? 'Approval required' : 'Immediate approval'} />
+            {currentUser.is_staff ? <Button size="small" variant="outlined" onClick={() => onEditTeam(selectedTeam)}>Edit name</Button> : null}
+            {currentUser.is_staff ? <Button size="small" variant="outlined" onClick={() => onToggleTeamApproval(selectedTeam)}>{selectedTeam.approval_required ? 'Allow immediate join' : 'Require approval'}</Button> : null}
+            {currentUser.is_staff ? <Button size="small" variant="outlined" color="error" onClick={() => onDeleteTeam(selectedTeam)}>Delete team</Button> : null}
+          </Stack>
         </Stack>
 
         {currentUser.is_staff ? (
@@ -81,6 +89,13 @@ export function TeamAdministration({
                   </Stack>
                   <Typography sx={{ mt: 1 }}><strong>Topic:</strong> {cycle.topic}</Typography>
                   <Typography variant="body2" color="text.secondary">{cycle.start_date} to {cycle.end_date} · {cycle.trivia_sessions?.length ?? 0} sessions</Typography>
+                  {cycle.sprint_leaderboard?.length ? (
+                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1.5 }}>
+                      {cycle.sprint_leaderboard.map((entry, index) => (
+                        <Chip key={entry.user_id} size="small" color={index === 0 ? 'warning' : 'default'} label={`#${index + 1} ${entry.username} · 🏆 ${entry.trophy_count}`} />
+                      ))}
+                    </Stack>
+                  ) : <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Sprint leaderboard begins after trophies are awarded.</Typography>}
                 </Paper>
               </Grid>
             ))}
