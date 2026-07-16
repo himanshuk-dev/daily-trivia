@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.db.models import Count, Max, Q
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from django.utils.text import slugify
@@ -46,6 +47,35 @@ def team_list_create(request):
             approved_at=timezone.now(),
         )
     return Response(TeamSerializer(team, context={'request': request}).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def team_manage(request, pk: int):
+    if not request.user.is_staff:
+        return Response({'detail': 'Only a platform admin can edit or remove teams.'}, status=status.HTTP_403_FORBIDDEN)
+    team = get_object_or_404(Team, pk=pk)
+
+    if request.method == 'DELETE':
+        team.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    payload = {}
+    if 'name' in request.data:
+        name = str(request.data.get('name', '')).strip()
+        if not name:
+            return Response({'name': ['Team name cannot be blank.']}, status=status.HTTP_400_BAD_REQUEST)
+        payload['name'] = name
+        payload['slug'] = slugify(name)
+    if 'approval_required' in request.data:
+        payload['approval_required'] = request.data['approval_required']
+    if not payload:
+        return Response({'detail': 'Provide a team name or approval setting to update.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    serializer = TeamSerializer(team, data=payload, partial=True, context={'request': request})
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data)
 
 
 @api_view(['POST'])
@@ -158,6 +188,73 @@ def team_analytics(request, pk: int):
         'trivia_sessions': TriviaSession.objects.filter(master_cycle__team=team).count(),
         'answers': UserAnswer.objects.filter(trivia_session__master_cycle__team=team).count(),
         'trophies': TrophyAward.objects.filter(trivia_session__master_cycle__team=team).count(),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def platform_overview(request):
+    if not request.user.is_staff:
+        return Response({'detail': 'Only a platform admin can view the platform overview.'}, status=status.HTTP_403_FORBIDDEN)
+
+    team_data = []
+    teams = Team.objects.prefetch_related('memberships__user').order_by('name')
+    for team in teams:
+        session_data = []
+        sessions = TriviaSession.objects.filter(master_cycle__team=team).select_related(
+            'master_cycle__master',
+        ).order_by('-publish_at', '-id')
+        for session in sessions:
+            submissions = session.answers.values('user_id', 'user__username').annotate(
+                answers_submitted=Count('id'),
+                submitted_at=Max('submitted_at'),
+            ).order_by('user__username')
+            session_data.append({
+                'id': session.id,
+                'title': session.title,
+                'topic': session.topic,
+                'status': session.status,
+                'master': session.master_cycle.master.username,
+                'publish_at': session.publish_at,
+                'close_at': session.close_at,
+                'submissions': [
+                    {
+                        'user_id': item['user_id'],
+                        'username': item['user__username'],
+                        'answers_submitted': item['answers_submitted'],
+                        'submitted_at': item['submitted_at'],
+                    }
+                    for item in submissions
+                ],
+            })
+
+        leaderboard = User.objects.filter(
+            trophy_awards__trivia_session__master_cycle__team=team,
+        ).annotate(
+            trophy_count=Count(
+                'trophy_awards',
+                filter=Q(trophy_awards__trivia_session__master_cycle__team=team),
+            ),
+        ).order_by('-trophy_count', 'username')
+        members = team.memberships.select_related('user').order_by('status', 'user__username')
+        team_data.append({
+            'id': team.id,
+            'name': team.name,
+            'approval_required': team.approval_required,
+            'members': TeamMembershipSerializer(members, many=True).data,
+            'trivia_sessions': session_data,
+            'leaderboard': [
+                {'user_id': user.id, 'username': user.username, 'trophy_count': user.trophy_count}
+                for user in leaderboard
+            ],
+        })
+
+    return Response({
+        'team_count': len(team_data),
+        'user_count': User.objects.filter(is_active=True).count(),
+        'trivia_count': TriviaSession.objects.count(),
+        'answer_count': UserAnswer.objects.count(),
+        'teams': team_data,
     })
 
 

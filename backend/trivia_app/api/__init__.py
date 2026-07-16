@@ -2,9 +2,11 @@ from .auth import auth_logout, auth_me, auth_request_code, auth_verify_code
 from .teams import (
     notification_list_update,
     platform_admin_update,
+    platform_overview,
     team_analytics,
     team_join,
     team_list_create,
+    team_manage,
     team_members,
     team_membership_manage,
     user_delete,

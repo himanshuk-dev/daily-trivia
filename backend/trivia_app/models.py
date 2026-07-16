@@ -52,6 +52,7 @@ class MasterCycle(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='master_cycles', null=True, blank=True)
     master = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='master_cycles')
     topic = models.CharField(max_length=200)
+    daily_topics = models.JSONField(default=list, blank=True)
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)

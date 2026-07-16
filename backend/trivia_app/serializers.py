@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.db.models import Count
 from rest_framework import serializers
 
 from .models import MasterCycle, Notification, Team, TeamMembership, TrophyAward, TriviaQuestion, TriviaSession, UserAnswer
@@ -50,10 +51,49 @@ class MasterCycleSerializer(serializers.ModelSerializer):
     master_username = serializers.CharField(write_only=True)
     master_name = serializers.CharField(source='master.username', read_only=True)
     trivia_sessions = TriviaSessionSummarySerializer(many=True, read_only=True)
+    sprint_leaderboard = serializers.SerializerMethodField()
+    sprint_winner = serializers.SerializerMethodField()
 
     class Meta:
         model = MasterCycle
-        fields = ['id', 'team', 'master_username', 'master_name', 'topic', 'start_date', 'end_date', 'status', 'trivia_sessions']
+        fields = [
+            'id', 'team', 'master_username', 'master_name', 'topic', 'daily_topics',
+            'start_date', 'end_date', 'status', 'trivia_sessions', 'sprint_leaderboard', 'sprint_winner',
+        ]
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        start_date = attrs.get('start_date')
+        end_date = attrs.get('end_date')
+        daily_topics = attrs.get('daily_topics', [])
+        seen_dates = set()
+        for item in daily_topics:
+            if not isinstance(item, dict) or not item.get('date') or not str(item.get('topic', '')).strip():
+                raise serializers.ValidationError({'daily_topics': 'Each scheduled day needs a date and topic.'})
+            try:
+                scheduled_date = serializers.DateField().to_internal_value(item['date'])
+            except serializers.ValidationError as error:
+                raise serializers.ValidationError({'daily_topics': 'Use valid dates for daily topics.'}) from error
+            if start_date and end_date and not start_date <= scheduled_date <= end_date:
+                raise serializers.ValidationError({'daily_topics': 'Daily topic dates must be inside the sprint.'})
+            if scheduled_date in seen_dates:
+                raise serializers.ValidationError({'daily_topics': 'Each sprint date can appear only once.'})
+            seen_dates.add(scheduled_date)
+            item['topic'] = item['topic'].strip()
+        return attrs
+
+    def get_sprint_leaderboard(self, obj):
+        rows = TrophyAward.objects.filter(trivia_session__master_cycle=obj).values(
+            'user_id', 'user__username',
+        ).annotate(trophy_count=Count('id')).order_by('-trophy_count', 'user__username')
+        return [
+            {'user_id': row['user_id'], 'username': row['user__username'], 'trophy_count': row['trophy_count']}
+            for row in rows
+        ]
+
+    def get_sprint_winner(self, obj):
+        leaderboard = self.get_sprint_leaderboard(obj)
+        return leaderboard[0] if leaderboard else None
 
     def create(self, validated_data):
         master_username = validated_data.pop('master_username')

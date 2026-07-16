@@ -12,7 +12,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from trivia_app.models import TeamMembership, TriviaSession
+from trivia_app.models import Notification, Team, TeamMembership, TriviaSession
 from trivia_app.services.ai_generator import GROQ_BASE_URL, GeneratedQuestion, TriviaGenerator
 
 
@@ -107,6 +107,32 @@ class TeamTriviaWorkflowTests(APITestCase):
         token, _ = Token.objects.get_or_create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
 
+    def test_platform_admin_can_edit_and_delete_team(self):
+        self.authenticate(self.admin)
+        response = self.client.post('/api/teams/', {
+            'name': 'Temporary Team',
+            'approval_required': True,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        team_id = response.data['id']
+
+        self.authenticate(self.player)
+        self.assertEqual(self.client.patch(
+            f'/api/teams/{team_id}/', {'name': 'Unauthorized'}, format='json',
+        ).status_code, status.HTTP_403_FORBIDDEN)
+
+        self.authenticate(self.admin)
+        response = self.client.patch(f'/api/teams/{team_id}/', {
+            'name': 'Renamed Team',
+            'approval_required': False,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Renamed Team')
+        self.assertFalse(response.data['approval_required'])
+
+        self.assertEqual(self.client.delete(f'/api/teams/{team_id}/').status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Team.objects.filter(pk=team_id).exists())
+
     @override_settings(TRIVIA_ANSWER_WINDOW_HOURS=0.25)
     def test_platform_admin_assigns_initial_team_admin_who_can_assign_self_as_master(self):
         team_admin = User.objects.create_user(username='team-admin', email='team-admin@example.com')
@@ -140,12 +166,21 @@ class TeamTriviaWorkflowTests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
+        sprint_start = timezone.localdate()
+        daily_topics = [
+            {
+                'date': (sprint_start + timedelta(days=index)).isoformat(),
+                'topic': 'Canadian History' if index == 0 else f'Topic {index + 1}',
+            }
+            for index in range(14)
+        ]
         response = self.client.post('/api/master-cycles/', {
             'team': team_id,
             'master_username': team_admin.username,
-            'topic': 'Canada',
-            'start_date': '2026-07-28',
-            'end_date': '2026-08-10',
+            'topic': 'Canada Sprint',
+            'daily_topics': daily_topics,
+            'start_date': sprint_start.isoformat(),
+            'end_date': (sprint_start + timedelta(days=13)).isoformat(),
             'status': 'active',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -158,8 +193,9 @@ class TeamTriviaWorkflowTests(APITestCase):
             correct_choice='Ottawa',
             explanation='Ottawa is the capital of Canada.',
         )
-        with patch('trivia_app.api.trivia.TriviaGenerator.generate', return_value=generated):
+        with patch('trivia_app.api.trivia.TriviaGenerator.generate', return_value=generated) as generate:
             response = self.client.post(f'/api/master-cycles/{cycle_id}/generate-trivia/', format='json')
+        generate.assert_called_once_with('Canadian History')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['status'], TriviaSession.Status.LIVE)
         self.assertEqual(len(response.data['questions']), 1)
@@ -167,6 +203,11 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertIsNotNone(response.data['close_at'])
 
         session = TriviaSession.objects.get(pk=response.data['id'])
+        self.assertTrue(Notification.objects.filter(
+            user=self.admin,
+            team_id=team_id,
+            message=f'New trivia is live: {session.title}',
+        ).exists())
         self.assertAlmostEqual(
             (session.close_at - session.publish_at).total_seconds(),
             timedelta(minutes=15).total_seconds(),
@@ -185,6 +226,10 @@ class TeamTriviaWorkflowTests(APITestCase):
             'trivia_question': question_id,
             'selected_choice': 'Ottawa',
         }, format='json').status_code, status.HTTP_409_CONFLICT)
+        response = self.client.get(f'/api/trivia-sessions/{session.id}/')
+        self.assertEqual(response.data['questions'][0]['correct_choice'], 'Ottawa')
+        self.assertIsNone(response.data['questions'][0]['selected_choice'])
+        self.assertFalse(response.data['questions'][0]['is_correct'])
 
     def test_team_approval_manual_trivia_and_team_leaderboard(self):
         self.authenticate(self.admin)
@@ -252,7 +297,33 @@ class TeamTriviaWorkflowTests(APITestCase):
         response = self.client.post(f'/api/trivia-sessions/{session_id}/evaluate/')
         self.assertEqual(response.data['trophies_awarded'], 1)
 
+        response = self.client.get(f'/api/trivia-sessions/{session_id}/')
+        self.assertEqual(response.data['submission_count'], 1)
+        self.assertEqual(response.data['submissions'][0]['username'], self.player.username)
+        self.assertEqual(response.data['submissions'][0]['answers_submitted'], 1)
+        self.assertNotIn('selected_choice', response.data['submissions'][0])
+
         self.authenticate(self.player)
         response = self.client.get(f"/api/leaderboard/?team={team['id']}")
+        self.assertEqual(response.data[0]['username'], self.player.username)
+        self.assertEqual(response.data[0]['trophy_count'], 1)
+
+        response = self.client.get(f'/api/trivia-sessions/{session_id}/')
+        self.assertEqual(response.data['questions'][0]['correct_choice'], 'Mars')
+        self.assertEqual(response.data['questions'][0]['selected_choice'], 'Mars')
+        self.assertTrue(response.data['questions'][0]['is_correct'])
+        self.assertEqual(response.data['questions'][0]['explanation'], 'Iron oxides make Mars appear red.')
+
+        self.assertEqual(self.client.get('/api/admin/overview/').status_code, status.HTTP_403_FORBIDDEN)
+        self.authenticate(self.admin)
+        response = self.client.get('/api/admin/overview/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        overview_team = next(item for item in response.data['teams'] if item['id'] == team['id'])
+        self.assertEqual(len(overview_team['members']), 3)
+        self.assertEqual(overview_team['trivia_sessions'][0]['title'], 'Space Basics')
+        self.assertEqual(overview_team['trivia_sessions'][0]['submissions'][0]['username'], self.player.username)
+        self.assertEqual(overview_team['leaderboard'][0]['username'], self.player.username)
+        response = self.client.get('/api/leaderboard/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['username'], self.player.username)
         self.assertEqual(response.data[0]['trophy_count'], 1)

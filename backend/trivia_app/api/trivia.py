@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -20,6 +20,19 @@ from ..serializers import (
 )
 from ..services.ai_generator import TriviaGenerator
 from .common import can_manage_cycle, get_object_or_404, is_approved_member, is_team_admin
+
+
+def notify_trivia_published(team: Team, session: TriviaSession, publisher: User) -> None:
+    member_ids = set(TeamMembership.objects.filter(
+        team=team,
+        status=TeamMembership.Status.APPROVED,
+    ).exclude(user=publisher).values_list('user_id', flat=True))
+    admin_ids = set(User.objects.filter(is_staff=True, is_active=True).values_list('id', flat=True))
+    recipient_ids = member_ids | admin_ids
+    Notification.objects.bulk_create([
+        Notification(user_id=user_id, team=team, message=f'New trivia is live: {session.title}')
+        for user_id in recipient_ids
+    ])
 
 
 @api_view(['GET', 'POST'])
@@ -53,9 +66,20 @@ def master_cycle_generate_trivia(request, pk: int):
     cycle = get_object_or_404(MasterCycle, pk=pk)
     if not can_manage_cycle(request.user, cycle):
         return Response({'detail': "Only this cycle's master can generate trivia."}, status=status.HTTP_403_FORBIDDEN)
-    title = request.data.get('title') or f'{cycle.topic} Daily Challenge'
+    scheduled_date = request.data.get('scheduled_date') or timezone.localdate().isoformat()
+    scheduled_topic = next(
+        (item.get('topic') for item in cycle.daily_topics if item.get('date') == scheduled_date),
+        None,
+    )
+    if cycle.daily_topics and not scheduled_topic:
+        return Response(
+            {'detail': f'No trivia topic is scheduled for {scheduled_date}.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    trivia_topic = scheduled_topic or cycle.topic
+    title = request.data.get('title') or f'{trivia_topic} Daily Challenge'
     try:
-        question = TriviaGenerator().generate(cycle.topic)
+        question = TriviaGenerator().generate(trivia_topic)
     except Exception as exc:
         return Response({'detail': f'Trivia generation failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
 
@@ -64,7 +88,7 @@ def master_cycle_generate_trivia(request, pk: int):
         session = TriviaSession.objects.create(
             master_cycle=cycle,
             title=title,
-            topic=cycle.topic,
+            topic=trivia_topic,
             status=TriviaSession.Status.LIVE,
             publish_at=publish_at,
             close_at=publish_at + timedelta(hours=settings.TRIVIA_ANSWER_WINDOW_HOURS),
@@ -78,14 +102,7 @@ def master_cycle_generate_trivia(request, pk: int):
             sort_order=1,
         )
         if cycle.team:
-            member_ids = TeamMembership.objects.filter(
-                team=cycle.team,
-                status=TeamMembership.Status.APPROVED,
-            ).exclude(user=request.user).values_list('user_id', flat=True)
-            Notification.objects.bulk_create([
-                Notification(user_id=user_id, team=cycle.team, message=f'New trivia is live: {session.title}')
-                for user_id in member_ids
-            ])
+            notify_trivia_published(cycle.team, session, request.user)
     return Response(TriviaSessionSerializer(session).data, status=status.HTTP_201_CREATED)
 
 
@@ -139,8 +156,37 @@ def trivia_session_retrieve(request, pk: int):
     session = get_object_or_404(TriviaSession.objects.prefetch_related('questions'), pk=pk)
     if session.master_cycle.team and not is_approved_member(request.user, session.master_cycle.team):
         return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
-    if can_manage_cycle(request.user, session.master_cycle):
-        return Response(TriviaSessionSerializer(session).data)
+
+    answer_window_closed = bool(session.close_at and timezone.now() >= session.close_at)
+    can_manage = can_manage_cycle(request.user, session.master_cycle)
+    if can_manage or answer_window_closed or session.status == TriviaSession.Status.CLOSED:
+        data = TriviaSessionSerializer(session).data
+        if can_manage:
+            submissions = session.answers.values('user_id', 'user__username').annotate(
+                answers_submitted=Count('id'),
+                submitted_at=Max('submitted_at'),
+            ).order_by('submitted_at')
+            data['submissions'] = [
+                {
+                    'user_id': submission['user_id'],
+                    'username': submission['user__username'],
+                    'answers_submitted': submission['answers_submitted'],
+                    'submitted_at': submission['submitted_at'],
+                }
+                for submission in submissions
+            ]
+            data['submission_count'] = len(data['submissions'])
+        if answer_window_closed or session.status == TriviaSession.Status.CLOSED:
+            answers_by_question = {
+                answer.trivia_question_id: answer
+                for answer in UserAnswer.objects.filter(trivia_session=session, user=request.user)
+            }
+            for question in data['questions']:
+                answer = answers_by_question.get(question['id'])
+                question['selected_choice'] = answer.selected_choice if answer else None
+                question['is_correct'] = bool(answer and answer.selected_choice == question['correct_choice'])
+        return Response(data)
+
     data = TriviaSessionSerializer(session).data
     data['questions'] = PublicTriviaQuestionSerializer(session.questions.all(), many=True).data
     return Response(data)
@@ -156,14 +202,7 @@ def trivia_session_publish(request, pk: int):
     session.publish_at = timezone.now()
     session.save(update_fields=['status', 'publish_at'])
     if session.master_cycle.team:
-        member_ids = TeamMembership.objects.filter(
-            team=session.master_cycle.team,
-            status=TeamMembership.Status.APPROVED,
-        ).exclude(user=request.user).values_list('user_id', flat=True)
-        Notification.objects.bulk_create([
-            Notification(user_id=user_id, team=session.master_cycle.team, message=f'New trivia is live: {session.title}')
-            for user_id in member_ids
-        ])
+        notify_trivia_published(session.master_cycle.team, session, request.user)
     return Response(TriviaSessionSerializer(session).data)
 
 
