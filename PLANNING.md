@@ -56,7 +56,7 @@ Build a trivia app where users create usernames, a manually selected master choo
 - The application supports multiple persistent teams, each with isolated memberships, trivia cycles, answers, trophies, and leaderboards.
 - Users join teams with invite codes. A team can either admit them immediately or require a team administrator's approval.
 - A trivia master is assigned for a specific team cycle.
-- Masters schedule a different topic for each day of a two-week sprint and can generate one AI question from that day’s topic for a configurable answer window.
+- Masters choose from suggested topics on each trivia day and generate one AI question for a configurable answer window, without planning all topics when the two-week sprint is created.
 
 ## Authentication and Authorization
 - Registration collects first name, last name, username, and email, then sends a time-limited one-time code to that email.

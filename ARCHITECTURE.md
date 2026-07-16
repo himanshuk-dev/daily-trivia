@@ -4,7 +4,7 @@
 
 Daily Trivia is a team-based web application for running recurring multiple-choice trivia. Users authenticate with email one-time codes, join teams, answer live trivia, and earn trophies. Team administrators manage membership and assign a trivia master. The master creates or generates a draft, reviews it, publishes it, and evaluates submitted answers.
 
-Each master cycle is a two-week sprint with a dated 14-day topic schedule. Daily questions use the topic assigned to their publication date, while trophy awards remain linked to the shared cycle for sprint ranking and winner announcement. Cycles created before the schedule field was introduced fall back to their original cycle topic.
+Each master cycle is a two-week sprint. The master chooses a suggested topic on the day each question is generated, while trophy awards remain linked to the shared cycle for sprint ranking and winner announcement. Previously stored dated topic schedules remain supported as a fallback, followed by the sprint name for older cycles.
 
 This report describes the architecture that is implemented in the repository today. Product intentions and future phases are documented separately in [PLANNING.md](PLANNING.md).
 
