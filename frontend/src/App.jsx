@@ -329,7 +329,8 @@ export default function App() {
         title: session.title,
         questions: session.questions,
       }))
-      setMessage(`AI generated and published ${session.title}. The team has 24 hours to answer.`)
+      const closesAt = session.close_at ? new Date(session.close_at).toLocaleString() : 'the configured deadline'
+      setMessage(`AI generated and published ${session.title}. Answers close ${closesAt}.`)
     } catch (error) {
       setMessage(error.message)
     }

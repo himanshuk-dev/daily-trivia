@@ -1,17 +1,56 @@
 import re
+import os
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.core import mail
 from django.contrib.auth.models import User
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from trivia_app.models import TeamMembership, TriviaSession
-from trivia_app.services.ai_generator import GeneratedQuestion
+from trivia_app.services.ai_generator import GROQ_BASE_URL, GeneratedQuestion, TriviaGenerator
+
+
+class TriviaGeneratorTests(SimpleTestCase):
+    @staticmethod
+    def response(content):
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+        )
+
+    def test_requires_groq_api_key(self):
+        with patch.dict(os.environ, {'GROQ_API_KEY': ''}):
+            with self.assertRaisesMessage(RuntimeError, 'GROQ_API_KEY is required'):
+                TriviaGenerator().generate('Canada')
+
+    @patch('openai.OpenAI')
+    def test_uses_groq_and_retries_invalid_domain_output_once(self, openai_client):
+        invalid = self.response(
+            '{"prompt":"Capital?","choices":["Ottawa","Ottawa","Toronto","Montreal"],'
+            '"correct_choice":"Ottawa","explanation":"It is Ottawa."}'
+        )
+        valid = self.response(
+            '{"prompt":"What is Canada’s capital?",'
+            '"choices":["Ottawa","Toronto","Vancouver","Montreal"],'
+            '"correct_choice":"Ottawa","explanation":"Ottawa is Canada’s capital."}'
+        )
+        client = openai_client.return_value
+        client.chat.completions.create.side_effect = [invalid, valid]
+
+        with patch.dict(os.environ, {
+            'GROQ_API_KEY': 'test-key',
+            'GROQ_MODEL': 'openai/gpt-oss-20b',
+        }):
+            question = TriviaGenerator().generate('Canada')
+
+        openai_client.assert_called_once_with(api_key='test-key', base_url=GROQ_BASE_URL)
+        self.assertEqual(client.chat.completions.create.call_count, 2)
+        self.assertEqual(question.correct_choice, 'Ottawa')
 
 
 @override_settings(
@@ -68,6 +107,7 @@ class TeamTriviaWorkflowTests(APITestCase):
         token, _ = Token.objects.get_or_create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
 
+    @override_settings(TRIVIA_ANSWER_WINDOW_HOURS=0.25)
     def test_platform_admin_assigns_initial_team_admin_who_can_assign_self_as_master(self):
         team_admin = User.objects.create_user(username='team-admin', email='team-admin@example.com')
         direct_member = User.objects.create_user(username='direct-member', email='direct-member@example.com')
@@ -129,7 +169,7 @@ class TeamTriviaWorkflowTests(APITestCase):
         session = TriviaSession.objects.get(pk=response.data['id'])
         self.assertAlmostEqual(
             (session.close_at - session.publish_at).total_seconds(),
-            timedelta(hours=24).total_seconds(),
+            timedelta(minutes=15).total_seconds(),
             delta=1,
         )
         self.assertEqual(

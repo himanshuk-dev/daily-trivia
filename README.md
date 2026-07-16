@@ -15,7 +15,7 @@ The application supports passwordless email-code authentication, multiple teams,
 - Draft review, editing, publishing, closing, and answer evaluation
 - Trophy awards for users who answer correctly
 - Team leaderboards, trivia history, notifications, and basic analytics
-- Automatic publication with a server-enforced 24-hour answer window
+- Automatic publication with a configurable, server-enforced answer window
 
 See [PLANNING.md](PLANNING.md) for the product requirements, role model, delivery plan, and implementation status.
 
@@ -27,7 +27,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the system design, data model, reques
 - Backend: Python 3.12, Django 5, and Django REST Framework
 - Database: PostgreSQL
 - Authentication: Django REST Framework token authentication with email one-time codes
-- AI integration: OpenAI Responses API (API key required)
+- AI integration: Groq API with GPT-OSS 20B (API key required)
 
 ## Project structure
 
@@ -136,11 +136,12 @@ Change this value in `.env` if a different account should receive platform-admin
 
 ## AI trivia generation
 
-AI generation requires an OpenAI API key. The master selects a cycle whose topic has already been set, and the AI creates exactly one multiple-choice question. The question is published immediately and remains open for 24 hours:
+AI generation requires a Groq API key. The master selects a cycle whose topic has already been set, and GPT-OSS 20B creates exactly one multiple-choice question. The question is published immediately and remains open for the configured answer window:
 
 ```dotenv
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-5.4-nano
+GROQ_API_KEY=
+GROQ_MODEL=openai/gpt-oss-20b
+TRIVIA_ANSWER_WINDOW_HOURS=24
 ```
 
 Set a valid key in `.env`. Without it, the API returns a clear configuration error instead of generating placeholder content. Do not commit `.env` or API keys to source control.
@@ -190,8 +191,9 @@ The complete template is in [.env.example](.env.example). Important settings inc
 | `PLATFORM_ADMIN_EMAILS` | Initial platform-administrator email addresses |
 | `LOGIN_CODE_EXPIRY_MINUTES` | Lifetime of email login codes |
 | `EMAIL_*` | Console or production SMTP configuration |
-| `OPENAI_API_KEY` | Optional key for AI trivia generation |
-| `OPENAI_MODEL` | Model used to generate trivia drafts |
+| `GROQ_API_KEY` | Optional Groq key for AI trivia generation |
+| `GROQ_MODEL` | Groq model used to generate trivia questions |
+| `TRIVIA_ANSWER_WINDOW_HOURS` | Answer-window duration; accepts decimals such as `0.25` for 15 minutes |
 | `VITE_API_BASE_URL` | Backend API URL used by the frontend |
 
 ## Main workflow
@@ -203,7 +205,7 @@ The complete template is in [.env.example](.env.example). Important settings inc
    Platform and team administrators can also add an existing active user directly as an approved member or team administrator.
 5. A team administrator assigns themselves or another approved member as master for a team cycle and selects its topic.
 6. The master asks AI to generate one question from the cycle topic; it is published immediately.
-7. Approved team members submit their answers during the 24-hour window.
+7. Approved team members submit their answers during the configured answer window.
 8. After the deadline, the master evaluates the session.
 9. Correct answers produce trophies.
 10. Correct participants receive trophies reflected in the leaderboard.

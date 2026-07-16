@@ -6,7 +6,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
     <Grid item xs={12}>
       <Card sx={{ borderRadius: 4 }}><CardContent>
         <Typography variant="h6" gutterBottom>Daily AI trivia</Typography>
-        <Typography color="text.secondary">Select the cycle for your topic, then let AI create one question and publish it for 24 hours.</Typography>
+        <Typography color="text.secondary">Select the cycle for your topic, then let AI create and publish one question for the configured answer window.</Typography>
         <Stack spacing={2}>
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
@@ -48,7 +48,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
           ))}</List>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Button variant="contained" onClick={onSave} disabled={!builder.cycleId || builder.questions.length === 0}>{builder.sessionId ? 'Save draft changes' : 'Create manual draft'}</Button>
-            <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || Boolean(builder.sessionId)}>Generate & publish 24-hour AI question</Button>
+            <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || Boolean(builder.sessionId)}>Generate & publish AI question</Button>
           </Stack>
         </Stack>
       </CardContent></Card>

@@ -14,8 +14,7 @@ flowchart LR
     Frontend -->|Token-authenticated REST calls| API[Django REST API]
     API --> DB[(PostgreSQL)]
     API --> Email[Console email or SMTP]
-    API -->|Optional| OpenAI[OpenAI Responses API]
-    API -->|No API key| Fallback[Local deterministic generator]
+    API -->|Optional| Groq[Groq Chat Completions API]
 ```
 
 The system is a conventional client/server application:
@@ -24,7 +23,7 @@ The system is a conventional client/server application:
 - Django REST Framework exposes JSON endpoints under `/api/`.
 - PostgreSQL is the persistent system of record.
 - Django sends authentication codes through the console backend in development or SMTP in production.
-- OpenAI powers the one-question daily challenge and requires an API key; the application does not label placeholder content as AI-generated.
+- Groq's GPT-OSS 20B model powers the one-question daily challenge and requires an API key.
 
 ## 3. Repository layout
 
@@ -120,9 +119,9 @@ Authentication codes use Django's configured email backend:
 
 ### 4.5 AI generation
 
-`TriviaGenerator` calls the OpenAI Responses API using `OPENAI_MODEL`. If `OPENAI_API_KEY` is missing, generation fails with a clear configuration error.
+`TriviaGenerator` calls Groq's OpenAI-compatible Chat Completions API using `GROQ_MODEL`. If `GROQ_API_KEY` is missing, generation fails with a clear configuration error.
 
-The OpenAI prompt requests one JSON question. The service validates that it has four unique choices and that its correct answer occurs in those choices. Invalid AI output raises an error and becomes a `502` API response.
+The Groq request uses strict JSON Schema output. The service additionally validates that the response has four unique choices and that its correct answer occurs in those choices, retrying once if these domain checks fail. Invalid AI output raises an error and becomes a `502` API response.
 
 ## 5. Data model
 
@@ -253,7 +252,7 @@ stateDiagram-v2
 A team administrator creates a `MasterCycle` and assigns an approved team member as master. The master can then:
 
 - Create a manual session with validated questions.
-- Ask the AI service to create one question, publish it immediately, and set its deadline to 24 hours after publication.
+- Ask the AI service to create one question, publish it immediately, and set its deadline from `TRIVIA_ANSWER_WINDOW_HOURS`.
 - Reload and replace the questions of an existing draft.
 
 ### Publication
@@ -334,7 +333,8 @@ Django loads the root `.env` file. The main configuration groups are:
 - `EMAIL_*`: email backend and SMTP delivery.
 - `PLATFORM_ADMIN_EMAILS`: comma-separated initial administrator allowlist.
 - `LOGIN_CODE_EXPIRY_MINUTES`: one-time-code lifetime.
-- `OPENAI_API_KEY` and `OPENAI_MODEL`: optional generation service.
+- `GROQ_API_KEY` and `GROQ_MODEL`: optional Groq generation service.
+- `TRIVIA_ANSWER_WINDOW_HOURS`: positive number of hours before an AI trivia session closes.
 - `VITE_API_BASE_URL`: frontend API base URL read by Vite at build/development-server startup.
 
 Development normally runs as two processes:

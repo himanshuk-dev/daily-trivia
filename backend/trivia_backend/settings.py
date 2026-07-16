@@ -102,6 +102,9 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in {'1', 'true', 'yes', 'on'}
 
 LOGIN_CODE_EXPIRY_MINUTES = int(os.getenv('LOGIN_CODE_EXPIRY_MINUTES', '10'))
+TRIVIA_ANSWER_WINDOW_HOURS = float(os.getenv('TRIVIA_ANSWER_WINDOW_HOURS', '24'))
+if TRIVIA_ANSWER_WINDOW_HOURS <= 0:
+    raise ValueError('TRIVIA_ANSWER_WINDOW_HOURS must be greater than zero.')
 PLATFORM_ADMIN_EMAILS = {
     email.lower() for email in env_list('PLATFORM_ADMIN_EMAILS', 'himanshu.kumar@ssc-spc.gc.ca')
 }

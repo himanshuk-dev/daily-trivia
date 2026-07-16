@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Count, Q
@@ -66,7 +67,7 @@ def master_cycle_generate_trivia(request, pk: int):
             topic=cycle.topic,
             status=TriviaSession.Status.LIVE,
             publish_at=publish_at,
-            close_at=publish_at + timedelta(hours=24),
+            close_at=publish_at + timedelta(hours=settings.TRIVIA_ANSWER_WINDOW_HOURS),
         )
         TriviaQuestion.objects.create(
             trivia_session=session,
@@ -82,7 +83,7 @@ def master_cycle_generate_trivia(request, pk: int):
                 status=TeamMembership.Status.APPROVED,
             ).exclude(user=request.user).values_list('user_id', flat=True)
             Notification.objects.bulk_create([
-                Notification(user_id=user_id, team=cycle.team, message=f'New 24-hour trivia is live: {session.title}')
+                Notification(user_id=user_id, team=cycle.team, message=f'New trivia is live: {session.title}')
                 for user_id in member_ids
             ])
     return Response(TriviaSessionSerializer(session).data, status=status.HTTP_201_CREATED)
@@ -173,7 +174,7 @@ def trivia_session_answers(request, pk: int):
     if session.status != TriviaSession.Status.LIVE:
         return Response({'detail': 'Answers are only accepted for live trivia.'}, status=status.HTTP_409_CONFLICT)
     if session.close_at and timezone.now() >= session.close_at:
-        return Response({'detail': 'The 24-hour answer window has closed.'}, status=status.HTTP_409_CONFLICT)
+        return Response({'detail': 'The answer window has closed.'}, status=status.HTTP_409_CONFLICT)
     if session.master_cycle.team and not is_approved_member(request.user, session.master_cycle.team):
         return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
     serializer = UserAnswerSerializer(data={
@@ -204,7 +205,7 @@ def trivia_session_evaluate(request, pk: int):
     if not can_manage_cycle(request.user, session.master_cycle):
         return Response({'detail': "Only this cycle's master can evaluate trivia."}, status=status.HTTP_403_FORBIDDEN)
     if session.close_at and timezone.now() < session.close_at:
-        return Response({'detail': 'This trivia can be evaluated after its 24-hour answer window closes.'}, status=status.HTTP_409_CONFLICT)
+        return Response({'detail': 'This trivia can be evaluated after its answer window closes.'}, status=status.HTTP_409_CONFLICT)
     correct_user_ids: list[int] = []
     with transaction.atomic():
         for answer in session.answers.select_related('user'):

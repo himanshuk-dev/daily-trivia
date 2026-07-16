@@ -56,7 +56,7 @@ Build a trivia app where users create usernames, a manually selected master choo
 - The application supports multiple persistent teams, each with isolated memberships, trivia cycles, answers, trophies, and leaderboards.
 - Users join teams with invite codes. A team can either admit them immediately or require a team administrator's approval.
 - A trivia master is assigned for a specific team cycle.
-- Masters can create trivia manually or generate one AI question from the cycle topic that is published for 24 hours.
+- Masters can create trivia manually or generate one AI question from the cycle topic that is published for a configurable answer window.
 
 ## Authentication and Authorization
 - Registration collects first name, last name, username, and email, then sends a time-limited one-time code to that email.
@@ -122,7 +122,7 @@ Build a trivia app where users create usernames, a manually selected master choo
 - Complete: platform-admin promotion, user invitations, user removal safeguards, and a dedicated admin dashboard area.
 - Complete: persistent teams, invite codes, optional approval, team-admin roles, membership approval/rejection/removal, and team selection.
 - Complete: team-scoped master cycles, trivia access, answers, trophies, leaderboard, history, and basic engagement analytics.
-- Complete: manual multiple-choice trivia creation plus one-question AI challenges with automatic publication, a 24-hour answer deadline, evaluation, and trophy awards.
+- Complete: manual multiple-choice trivia creation plus one-question AI challenges with automatic publication, a configurable answer deadline, evaluation, and trophy awards.
 - Complete: in-app notifications when team trivia is published.
 - Deferred beyond the confirmed multiple-choice MVP: additional question formats and advanced analytics visualizations.
-- External configuration required for production: SMTP credentials and an OpenAI API key. Local development uses console email; AI generation requires a configured key.
+- External configuration required for production: SMTP credentials and a Groq API key. Local development uses console email; AI generation requires a configured key.
