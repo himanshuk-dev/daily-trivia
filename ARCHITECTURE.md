@@ -4,6 +4,8 @@
 
 Daily Trivia is a team-based web application for running recurring multiple-choice trivia. Users authenticate with email one-time codes, join teams, answer live trivia, and earn trophies. Team administrators manage membership and assign a trivia master. The master creates or generates a draft, reviews it, publishes it, and evaluates submitted answers.
 
+Each master cycle is a two-week sprint with a dated 14-day topic schedule. Daily questions use the topic assigned to their publication date, while trophy awards remain linked to the shared cycle for sprint ranking and winner announcement. Cycles created before the schedule field was introduced fall back to their original cycle topic.
+
 This report describes the architecture that is implemented in the repository today. Product intentions and future phases are documented separately in [PLANNING.md](PLANNING.md).
 
 ## 2. System context
@@ -73,7 +75,7 @@ The frontend is a React 18 application built by Vite. Material UI supplies compo
 - Master builder: selected cycle, draft session, title, questions, choices, answer, and explanation.
 - Administration: platform users, new team form, notifications, and dashboard mode.
 
-The startup flow checks for a token in `localStorage`. If present, it calls `/auth/me/`; success restores the authenticated session and failure clears the token. Once a user is loaded, React effects fetch users, teams, cycles, and notifications. Selecting a team triggers leaderboard and, where authorized, membership and analytics requests.
+The startup flow checks for a token in `localStorage`. If present, it calls `/auth/me/`; success restores the authenticated session and failure clears the token. Once a user is loaded, React effects fetch users, teams, cycles, and notifications. Selecting a team triggers leaderboard and, where authorized, membership and analytics requests. The dashboard synchronizes changing data every ten seconds and immediately when the browser tab regains focus, covering notifications, new trivia, active sessions, submissions, memberships, analytics, leaderboards, and the platform overview.
 
 `api.js` is the frontend's API boundary. It:
 
@@ -122,6 +124,16 @@ Authentication codes use Django's configured email backend:
 `TriviaGenerator` calls Groq's OpenAI-compatible Chat Completions API using `GROQ_MODEL`. If `GROQ_API_KEY` is missing, generation fails with a clear configuration error.
 
 The Groq request uses strict JSON Schema output. The service additionally validates that the response has four unique choices and that its correct answer occurs in those choices, retrying once if these domain checks fail. Invalid AI output raises an error and becomes a `502` API response.
+
+Correct choices and explanations are hidden from ordinary members while the answer window is open. After `close_at`, the session endpoint exposes those results together with only the requesting member's own submitted answer, whether or not trophy evaluation has run yet.
+
+For a cycle master, the session response also includes a submission summary containing participant identity, answer count, and latest submission time. It does not expose selected choices through that summary.
+
+Platform administrators have a staff-only aggregate overview that groups every team with its memberships, trivia sessions, submission participants, and team leaderboard. This endpoint exposes participation metadata but not participants' selected choices.
+
+Platform administrators can rename teams, change their membership-approval policy, or delete a team after a destructive-action confirmation. Team deletion cascades through team-owned memberships, cycles, sessions, questions, answers, trophies, and notifications.
+
+The platform-admin trivia picker spans sessions from every team, while ordinary users see sessions only for their selected team. The public leaderboard is platform-wide for platform administrators and team-scoped for regular team members.
 
 ## 5. Data model
 
@@ -257,7 +269,7 @@ A team administrator creates a `MasterCycle` and assigns an approved team member
 
 ### Publication
 
-Publishing changes the session to `live` and records `publish_at`. The API creates an in-app notification for every approved team member except the publisher.
+Publishing changes the session to `live` and records `publish_at`. The API creates an in-app notification for every approved team member except a non-admin publisher, plus every active platform administrator whether or not they belong to that team. Recipient IDs are deduplicated when an administrator is also a team member.
 
 Normal participants receive a public question representation containing only the prompt, choices, and order. The correct answer and explanation are included only for the assigned master or a platform administrator.
 

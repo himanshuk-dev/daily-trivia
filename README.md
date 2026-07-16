@@ -10,11 +10,14 @@ The application supports passwordless email-code authentication, multiple teams,
 - Multiple teams with isolated members, trivia, trophies, and leaderboards
 - Team invite codes with optional administrator approval
 - Platform administrator, team administrator, trivia master, and member roles
-- Biweekly master cycles with a selected topic
+- Platform-admin team editing and confirmed deletion
+- Two-week master sprints with a different scheduled trivia topic for each day
 - Manual trivia creation or a one-question AI daily challenge
 - Draft review, editing, publishing, closing, and answer evaluation
 - Trophy awards for users who answer correctly
 - Team leaderboards, trivia history, notifications, and basic analytics
+- Automatic dashboard refresh for notifications, new trivia, submissions, teams, and leaderboards
+- Platform-wide publish notifications for every active platform administrator
 - Automatic publication with a configurable, server-enforced answer window
 
 See [PLANNING.md](PLANNING.md) for the product requirements, role model, delivery plan, and implementation status.
@@ -203,12 +206,13 @@ The complete template is in [.env.example](.env.example). Important settings inc
 3. A platform administrator creates a team and assigns its initial team administrator.
 4. Members join using the team's invite code.
    Platform and team administrators can also add an existing active user directly as an approved member or team administrator.
-5. A team administrator assigns themselves or another approved member as master for a team cycle and selects its topic.
-6. The master asks AI to generate one question from the cycle topic; it is published immediately.
+5. A team administrator assigns themselves or another approved member as master for a two-week sprint and schedules one topic for each of its 14 days.
+6. Each day, the master asks AI to generate one question from that day’s scheduled topic; it is published immediately.
 7. Approved team members submit their answers during the configured answer window.
 8. After the deadline, the master evaluates the session.
 9. Correct answers produce trophies.
-10. Correct participants receive trophies reflected in the leaderboard.
+10. Correct participants receive trophies reflected in the sprint leaderboard, whose leader is announced as the sprint winner when the two weeks end.
+11. Team members can reopen completed trivia to review the correct answer, explanation, and their own submission.
 
 ## Troubleshooting
 
