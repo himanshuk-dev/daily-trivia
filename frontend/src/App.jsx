@@ -36,11 +36,6 @@ import { TriviaBuilder } from './components/TriviaBuilder'
 import { UserManagement } from './components/UserManagement'
 import { addDays, formatDate } from './utils/dates'
 
-const buildDailyTopics = (startDate) => Array.from({ length: 14 }, (_, index) => ({
-  date: addDays(startDate, index),
-  topic: '',
-}))
-
 export default function App() {
   const today = useMemo(() => formatDate(new Date()), [])
   const [authMode, setAuthMode] = useState('login')
@@ -72,7 +67,7 @@ export default function App() {
     topic: '',
     start_date: today,
     end_date: addDays(today, 13),
-    daily_topics: buildDailyTopics(today),
+    daily_topics: [],
   })
   const [activeSession, setActiveSession] = useState(null)
   const [selectedChoices, setSelectedChoices] = useState({})
@@ -85,6 +80,7 @@ export default function App() {
     choices: ['', '', '', ''],
     correct_choice: '',
     explanation: '',
+    aiTopic: '',
     questions: [],
   })
 
@@ -299,7 +295,7 @@ export default function App() {
       setMasterCycle((current) => ({
         ...current,
         topic: '',
-        daily_topics: buildDailyTopics(current.start_date),
+        daily_topics: [],
       }))
       setMessage(`${cycle.master_name} is now the master for the ${cycle.topic} sprint.`)
     } catch (error) {
@@ -478,7 +474,7 @@ export default function App() {
 
   const handleGenerateTrivia = async () => {
     try {
-      const session = await api.generateTrivia(builder.cycleId, { title: builder.title })
+      const session = await api.generateTrivia(builder.cycleId, { title: builder.title, topic: builder.aiTopic })
       setCycles(await api.getMasterCycles())
       setActiveSession(session)
       setBuilder((current) => ({

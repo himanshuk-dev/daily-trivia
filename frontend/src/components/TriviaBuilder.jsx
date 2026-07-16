@@ -1,11 +1,17 @@
 import { Button, Card, CardContent, Divider, Grid, List, ListItem, ListItemText, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import { formatDate } from '../utils/dates'
 
+const suggestedTopics = [
+  'Arts and Literature', 'Canadian History', 'Current Events', 'Food and Cuisine',
+  'Geography', 'Health and Wellness', 'Movies and Television', 'Music',
+  'Nature and Wildlife', 'Science', 'Space', 'Sports', 'Technology', 'World History',
+]
+
 export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQuestion, onSave, onGenerate }) {
   if (!cycles.length) return null
   const selectedCycle = cycles.find((cycle) => String(cycle.id) === String(builder.cycleId))
   const today = formatDate(new Date())
-  const todaysTopic = selectedCycle?.daily_topics?.find((item) => item.date === today)?.topic ?? selectedCycle?.topic
+  const scheduledTopic = selectedCycle?.daily_topics?.find((item) => item.date === today)?.topic
   return (
     <Grid item xs={12}>
       <Card sx={{ borderRadius: 4 }}><CardContent>
@@ -14,7 +20,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
         <Stack spacing={2}>
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
-              <TextField select fullWidth label="Master cycle" value={builder.cycleId} onChange={(event) => setBuilder((current) => ({ ...current, cycleId: event.target.value, sessionId: '', questions: [] }))}>
+              <TextField select fullWidth label="Master cycle" value={builder.cycleId} onChange={(event) => setBuilder((current) => ({ ...current, cycleId: event.target.value, sessionId: '', aiTopic: '', questions: [] }))}>
                 {cycles.map((cycle) => <MenuItem key={cycle.id} value={String(cycle.id)}>{cycle.topic} · {cycle.master_name}</MenuItem>)}
               </TextField>
             </Grid>
@@ -28,7 +34,12 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
             </Grid>
             <Grid item xs={12} md={4}><TextField fullWidth label="Trivia title" value={builder.title} onChange={(event) => setBuilder((current) => ({ ...current, title: event.target.value }))} /></Grid>
           </Grid>
-          {selectedCycle ? <Typography color="secondary.main" fontWeight={800}>Today’s scheduled topic: {todaysTopic || 'No topic scheduled for today'}</Typography> : null}
+          {selectedCycle ? (
+            <TextField select fullWidth label="Today’s trivia topic" value={builder.aiTopic} onChange={(event) => setBuilder((current) => ({ ...current, aiTopic: event.target.value }))}>
+              {scheduledTopic ? <MenuItem value={scheduledTopic}>{scheduledTopic} · Previously scheduled</MenuItem> : null}
+              {suggestedTopics.filter((topic) => topic !== scheduledTopic).map((topic) => <MenuItem key={topic} value={topic}>{topic}</MenuItem>)}
+            </TextField>
+          ) : null}
           <Divider />
           <TextField fullWidth label="Question" value={builder.prompt} onChange={(event) => setBuilder((current) => ({ ...current, prompt: event.target.value }))} />
           <Grid container spacing={2}>
@@ -53,7 +64,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
           ))}</List>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Button variant="contained" onClick={onSave} disabled={!builder.cycleId || builder.questions.length === 0}>{builder.sessionId ? 'Save draft changes' : 'Create manual draft'}</Button>
-            <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || Boolean(builder.sessionId)}>Generate & publish AI question</Button>
+            <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || !builder.aiTopic || Boolean(builder.sessionId)}>Generate & publish AI question</Button>
           </Stack>
         </Stack>
       </CardContent></Card>
