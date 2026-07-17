@@ -1,17 +1,17 @@
 # Daily Trivia Planning Doc
 
 ## Product Goal
-Build a trivia app where users create usernames, a manually selected master chooses a topic every two weeks, AI generates trivia for that topic, and correct answers earn digital trophies.
+Build a trivia app where users create usernames, a manually selected master chooses daily topics during a custom-length cycle, AI generates trivia for those topics, and correct answers earn digital trophies.
 
 ## Core Roles
 - User: creates a username, joins trivia sessions, answers questions, and collects trophies.
-- Master: owns the biweekly trivia cycle, is selected manually, picks the topic, reviews AI-generated trivia, publishes the session, and evaluates answers.
+- Master: owns a custom-length trivia cycle, is selected manually, picks each daily topic, reviews AI-generated trivia, publishes the session, and evaluates answers.
 - AI: generates trivia content from the master-selected topic.
 - System: stores sessions, answers, trophies, and history.
 
 ## Main User Flow
 1. A user signs up with a unique username.
-2. The current master is chosen manually for the two-week cycle.
+2. The current master is chosen manually for a cycle with custom start and end dates.
 3. The master chooses the topic for that cycle.
 4. AI generates draft trivia based on the topic.
 5. The master reviews, edits, and publishes the trivia.
@@ -56,7 +56,7 @@ Build a trivia app where users create usernames, a manually selected master choo
 - The application supports multiple persistent teams, each with isolated memberships, trivia cycles, answers, trophies, and leaderboards.
 - Users join teams with invite codes. A team can either admit them immediately or require a team administrator's approval.
 - A trivia master is assigned for a specific team cycle.
-- Masters choose from suggested topics on each trivia day and generate one AI question for a configurable answer window, without planning all topics when the two-week sprint is created.
+- Masters choose from suggested topics on each trivia day and generate one AI question for a configurable answer window, without planning all topics when the custom-length cycle is created.
 
 ## Authentication and Authorization
 - Registration collects first name, last name, username, and email, then sends a time-limited one-time code to that email.

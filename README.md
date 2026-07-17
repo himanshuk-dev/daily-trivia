@@ -11,7 +11,7 @@ The application supports passwordless email-code authentication, multiple teams,
 - Team invite codes with optional administrator approval
 - Platform administrator, team administrator, trivia master, and member roles
 - Platform-admin team editing and confirmed deletion
-- Two-week master sprints with a same-day suggested-topic picker for each trivia
+- Custom-length trivia cycles with a same-day suggested-topic picker
 - Manual trivia creation or a one-question AI daily challenge
 - Draft review, editing, publishing, closing, and answer evaluation
 - Trophy awards for users who answer correctly
@@ -208,12 +208,13 @@ The complete template is in [.env.example](.env.example). Important settings inc
 3. A platform administrator creates a team and assigns its initial team administrator.
 4. Members join using the team's invite code.
    Platform and team administrators can also add an existing active user directly as an approved member or team administrator.
-5. A team administrator assigns themselves or another approved member as master for a two-week sprint without preselecting daily topics.
+5. A team administrator assigns themselves or another approved member as master for a custom-length cycle without preselecting daily topics.
 6. Each day, the master chooses a suggested topic from a dropdown and asks AI to generate one question; it is published immediately.
 7. Approved team members submit their answers during the configured answer window.
 8. After the deadline, the master evaluates the session.
 9. Correct answers produce trophies.
-10. Correct participants receive trophies reflected in the sprint leaderboard, whose leader is announced as the sprint winner when the two weeks end.
+10. Correct participants receive trophies reflected in the cycle leaderboard.
+11. After the custom end date and any open answer window pass, the cycle closes and announces the winner—or tied winners—to the master, approved team members, and platform administrators.
 11. Team members can reopen completed trivia to review the correct answer, explanation, and their own submission.
 
 ## Troubleshooting
