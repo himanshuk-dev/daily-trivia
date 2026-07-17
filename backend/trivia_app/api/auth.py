@@ -1,4 +1,6 @@
+import logging
 import secrets
+import smtplib
 from datetime import timedelta
 
 from django.conf import settings
@@ -14,6 +16,9 @@ from rest_framework.response import Response
 
 from ..models import EmailLoginCode
 from ..serializers import UserSerializer
+
+
+logger = logging.getLogger(__name__)
 
 
 def user_payload(user: User) -> dict:
@@ -52,17 +57,25 @@ def auth_request_code(request):
 
     code = f'{secrets.randbelow(1_000_000):06d}'
     EmailLoginCode.objects.filter(user=user, used_at__isnull=True).delete()
-    EmailLoginCode.objects.create(
+    login_code = EmailLoginCode.objects.create(
         user=user,
         code_hash=make_password(code),
         expires_at=timezone.now() + timedelta(minutes=settings.LOGIN_CODE_EXPIRY_MINUTES),
     )
-    send_mail(
-        subject='Your Daily Trivia login code',
-        message=f'Your Daily Trivia login code is {code}. It expires in {settings.LOGIN_CODE_EXPIRY_MINUTES} minutes.',
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-    )
+    try:
+        send_mail(
+            subject='Your Daily Trivia login code',
+            message=f'Your Daily Trivia login code is {code}. It expires in {settings.LOGIN_CODE_EXPIRY_MINUTES} minutes.',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+        )
+    except (smtplib.SMTPException, OSError):
+        login_code.delete()
+        logger.exception('Unable to send a login code email.')
+        return Response(
+            {'detail': 'The login email could not be sent. Please try again later.'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
     return Response({'detail': 'A login code has been sent.', 'email': email})
 
 

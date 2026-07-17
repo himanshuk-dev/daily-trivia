@@ -1,5 +1,6 @@
 import re
 import os
+import smtplib
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,7 +13,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from trivia_app.models import MasterCycle, Notification, Team, TeamMembership, TriviaSession
+from trivia_app.models import EmailLoginCode, MasterCycle, Notification, Team, TeamMembership, TriviaSession
 from trivia_app.services.ai_generator import GROQ_BASE_URL, GeneratedQuestion, TriviaGenerator
 
 
@@ -63,6 +64,23 @@ class TriviaGeneratorTests(SimpleTestCase):
     PLATFORM_ADMIN_EMAILS={'himanshu.kumar@ssc-spc.gc.ca'},
 )
 class EmailCodeAuthenticationTests(APITestCase):
+    @patch('trivia_app.api.auth.send_mail')
+    def test_email_delivery_failure_returns_bad_gateway_and_removes_code(self, send_mail):
+        send_mail.side_effect = smtplib.SMTPAuthenticationError(535, b'Authentication failed')
+
+        response = self.client.post(
+            '/api/auth/request-code/',
+            {'username': 'test-user', 'email': 'test@example.com'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+        self.assertEqual(
+            response.data['detail'],
+            'The login email could not be sent. Please try again later.',
+        )
+        self.assertFalse(EmailLoginCode.objects.exists())
+
     def test_registration_verification_and_logout(self):
         email = 'himanshu.kumar@ssc-spc.gc.ca'
         response = self.client.post(
