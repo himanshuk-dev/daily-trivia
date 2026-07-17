@@ -43,6 +43,7 @@ The console email backend used locally is not suitable for deployment because us
 | API | `EMAIL_HOST_PASSWORD` | SMTP password |
 | API | `DEFAULT_FROM_EMAIL` | Verified sender address |
 | Web | `VITE_API_BASE_URL` | API URL ending in `/api`, such as `https://daily-trivia-api.onrender.com/api` |
+| Web | `VITE_AUTH_TOKEN_STORAGE_KEY` | Browser storage key, such as `daily-trivia-auth-token` |
 
 Render generates `DJANGO_SECRET_KEY`. Never copy local `.env` secrets into source control.
 

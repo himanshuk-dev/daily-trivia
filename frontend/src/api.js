@@ -1,5 +1,13 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api'
-const TOKEN_KEY = 'daily-trivia-auth-token'
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+const TOKEN_KEY = import.meta.env.VITE_AUTH_TOKEN_STORAGE_KEY
+
+if (!API_BASE) {
+  throw new Error('VITE_API_BASE_URL is required.')
+}
+
+if (!TOKEN_KEY) {
+  throw new Error('VITE_AUTH_TOKEN_STORAGE_KEY is required.')
+}
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
