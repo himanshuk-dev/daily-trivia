@@ -12,7 +12,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from trivia_app.models import Notification, Team, TeamMembership, TriviaSession
+from trivia_app.models import MasterCycle, Notification, Team, TeamMembership, TriviaSession
 from trivia_app.services.ai_generator import GROQ_BASE_URL, GeneratedQuestion, TriviaGenerator
 
 
@@ -135,6 +135,17 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.data['name'], 'Renamed Team')
         self.assertFalse(response.data['approval_required'])
 
+        response = self.client.post('/api/master-cycles/', {
+            'team': team_id,
+            'master_username': self.admin.username,
+            'topic': 'Invalid dates',
+            'start_date': '2026-08-10',
+            'end_date': '2026-08-09',
+            'status': 'active',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('end_date', response.data)
+
         self.assertEqual(self.client.delete(f'/api/teams/{team_id}/').status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Team.objects.filter(pk=team_id).exists())
 
@@ -256,12 +267,13 @@ class TeamTriviaWorkflowTests(APITestCase):
                 )
                 self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+        cycle_start = timezone.localdate()
         response = self.client.post('/api/master-cycles/', {
             'team': team['id'],
             'master_username': self.master.username,
             'topic': 'Space',
-            'start_date': '2026-07-14',
-            'end_date': '2026-07-27',
+            'start_date': cycle_start.isoformat(),
+            'end_date': (cycle_start + timedelta(days=13)).isoformat(),
             'status': 'active',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -315,6 +327,26 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.data['questions'][0]['selected_choice'], 'Mars')
         self.assertTrue(response.data['questions'][0]['is_correct'])
         self.assertEqual(response.data['questions'][0]['explanation'], 'Iron oxides make Mars appear red.')
+
+        cycle = MasterCycle.objects.get(pk=cycle_id)
+        cycle.start_date = timezone.localdate() - timedelta(days=14)
+        cycle.end_date = timezone.localdate() - timedelta(days=1)
+        cycle.save(update_fields=['start_date', 'end_date'])
+        response = self.client.get('/api/notifications/')
+        winner_message = 'Cycle "Space" winner: player with 1 trophy!'
+        self.assertEqual(response.data[0]['message'], winner_message)
+        cycle.refresh_from_db()
+        self.assertEqual(cycle.status, MasterCycle.Status.CLOSED)
+        self.assertEqual(
+            Notification.objects.filter(user=self.player, message=winner_message).count(),
+            1,
+        )
+        self.client.get('/api/notifications/')
+        self.assertEqual(
+            Notification.objects.filter(user=self.player, message=winner_message).count(),
+            1,
+        )
+        self.assertTrue(Notification.objects.filter(user=self.master, message=winner_message).exists())
 
         self.assertEqual(self.client.get('/api/admin/overview/').status_code, status.HTTP_403_FORBIDDEN)
         self.authenticate(self.admin)

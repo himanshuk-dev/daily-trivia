@@ -19,6 +19,7 @@ from ..serializers import (
     UserAnswerSerializer,
 )
 from ..services.ai_generator import TriviaGenerator
+from ..services.cycle_finalizer import finalize_expired_cycles
 from .common import can_manage_cycle, get_object_or_404, is_approved_member, is_team_admin
 
 
@@ -39,6 +40,7 @@ def notify_trivia_published(team: Team, session: TriviaSession, publisher: User)
 @permission_classes([IsAuthenticated])
 def master_cycle_list_create(request):
     if request.method == 'GET':
+        finalize_expired_cycles()
         cycles = MasterCycle.objects.select_related('master').prefetch_related('trivia_sessions__questions').order_by('-start_date')
         if not request.user.is_staff:
             team_ids = TeamMembership.objects.filter(
@@ -66,6 +68,8 @@ def master_cycle_generate_trivia(request, pk: int):
     cycle = get_object_or_404(MasterCycle, pk=pk)
     if not can_manage_cycle(request.user, cycle):
         return Response({'detail': "Only this cycle's master can generate trivia."}, status=status.HTTP_403_FORBIDDEN)
+    if cycle.status != MasterCycle.Status.ACTIVE or not cycle.start_date <= timezone.localdate() <= cycle.end_date:
+        return Response({'detail': 'Trivia can only be generated during an active cycle.'}, status=status.HTTP_409_CONFLICT)
     scheduled_date = request.data.get('scheduled_date') or timezone.localdate().isoformat()
     scheduled_topic = next(
         (item.get('topic') for item in cycle.daily_topics if item.get('date') == scheduled_date),
@@ -108,6 +112,8 @@ def master_cycle_create_trivia(request, pk: int):
     cycle = get_object_or_404(MasterCycle, pk=pk)
     if not can_manage_cycle(request.user, cycle):
         return Response({'detail': "Only this cycle's master can create trivia."}, status=status.HTTP_403_FORBIDDEN)
+    if cycle.status != MasterCycle.Status.ACTIVE or not cycle.start_date <= timezone.localdate() <= cycle.end_date:
+        return Response({'detail': 'Trivia can only be created during an active cycle.'}, status=status.HTTP_409_CONFLICT)
     questions_data = request.data.get('questions', [])
     question_serializer = TriviaQuestionSerializer(data=questions_data, many=True)
     question_serializer.is_valid(raise_exception=True)
@@ -194,6 +200,9 @@ def trivia_session_publish(request, pk: int):
     session = get_object_or_404(TriviaSession, pk=pk)
     if not can_manage_cycle(request.user, session.master_cycle):
         return Response({'detail': "Only this cycle's master can publish trivia."}, status=status.HTTP_403_FORBIDDEN)
+    cycle = session.master_cycle
+    if cycle.status != MasterCycle.Status.ACTIVE or not cycle.start_date <= timezone.localdate() <= cycle.end_date:
+        return Response({'detail': 'Trivia can only be published during an active cycle.'}, status=status.HTTP_409_CONFLICT)
     session.status = TriviaSession.Status.LIVE
     session.publish_at = timezone.now()
     session.save(update_fields=['status', 'publish_at'])

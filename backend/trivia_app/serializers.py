@@ -65,6 +65,8 @@ class MasterCycleSerializer(serializers.ModelSerializer):
         attrs = super().validate(attrs)
         start_date = attrs.get('start_date')
         end_date = attrs.get('end_date')
+        if start_date and end_date and end_date < start_date:
+            raise serializers.ValidationError({'end_date': 'End date must be on or after the start date.'})
         daily_topics = attrs.get('daily_topics', [])
         seen_dates = set()
         for item in daily_topics:
