@@ -26,9 +26,11 @@ from .api import (
     user_delete,
     user_list_create,
 )
+from .api.common import health_check
 
 
 urlpatterns = [
+    path('health/', health_check, name='health-check'),
     path('auth/request-code/', auth_request_code, name='auth-request-code'),
     path('auth/verify-code/', auth_verify_code, name='auth-verify-code'),
     path('auth/me/', auth_me, name='auth-me'),

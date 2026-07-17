@@ -1,6 +1,10 @@
-from django.http import Http404
+from django.http import Http404, JsonResponse
 
 from ..models import MasterCycle, Team, TeamMembership
+
+
+def health_check(_request):
+    return JsonResponse({'status': 'ok'})
 
 
 def get_object_or_404(model, **kwargs):

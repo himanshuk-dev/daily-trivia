@@ -17,6 +17,11 @@ from trivia_app.services.ai_generator import GROQ_BASE_URL, GeneratedQuestion, T
 
 
 class TriviaGeneratorTests(SimpleTestCase):
+    def test_health_check(self):
+        response = self.client.get('/api/health/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json(), {'status': 'ok'})
+
     @staticmethod
     def response(content):
         return SimpleNamespace(
