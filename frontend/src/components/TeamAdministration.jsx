@@ -95,7 +95,7 @@ export function TeamAdministration({
                         <Chip key={entry.user_id} size="small" color={index === 0 ? 'warning' : 'default'} label={`#${index + 1} ${entry.username} · 🏆 ${entry.trophy_count}`} />
                       ))}
                     </Stack>
-                  ) : <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Sprint leaderboard begins after trophies are awarded.</Typography>}
+                  ) : <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Cycle leaderboard begins after trophies are awarded.</Typography>}
                 </Paper>
               </Grid>
             ))}

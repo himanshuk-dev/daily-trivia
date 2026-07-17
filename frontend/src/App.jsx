@@ -297,7 +297,7 @@ export default function App() {
         topic: '',
         daily_topics: [],
       }))
-      setMessage(`${cycle.master_name} is now the master for the ${cycle.topic} sprint.`)
+      setMessage(`${cycle.master_name} is now the master for the ${cycle.topic} cycle.`)
     } catch (error) {
       setMessage(error.message)
     }
@@ -645,7 +645,34 @@ export default function App() {
                       color="success"
                     />
                     <Typography variant="body2" color="text.secondary">{createdUser.email}</Typography>
-                    {createdUser.is_staff ? <Chip label="Platform admin" color="primary" /> : null}
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Roles</Typography>
+                      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                        {createdUser.is_staff ? <Chip label="Platform admin" color="primary" /> : null}
+                        {teams.filter((team) => team.membership_role || team.membership_status).map((team) => (
+                          <Chip
+                            key={team.id}
+                            variant="outlined"
+                            color={team.membership_status === 'pending' ? 'warning' : team.membership_status === 'rejected' ? 'error' : team.membership_role === 'team_admin' ? 'secondary' : 'default'}
+                            label={`${team.name}: ${
+                              team.membership_status === 'pending'
+                                ? 'Pending'
+                                : team.membership_status === 'rejected'
+                                  ? 'Rejected'
+                                : team.membership_role === 'team_admin'
+                                  ? 'Team admin'
+                                  : team.membership_role === 'member'
+                                    ? 'Member'
+                                    : 'Member'
+                            }`}
+                          />
+                        ))}
+                        {cycles.filter((cycle) => cycle.master_name === createdUser.username && cycle.status === 'active').map((cycle) => (
+                          <Chip key={`master-${cycle.id}`} label={`Trivia master: ${cycle.topic}`} color="warning" />
+                        ))}
+                        {!createdUser.is_staff && teams.length === 0 ? <Chip label="No team role yet" variant="outlined" /> : null}
+                      </Stack>
+                    </Box>
                     <Typography variant="body2">{notifications.filter((item) => !item.read_at).length} unread notifications</Typography>
                     {notifications.filter((item) => !item.read_at).slice(0, 2).map((notification) => (
                       <Alert key={notification.id} severity="info">{notification.message}</Alert>
@@ -682,7 +709,7 @@ export default function App() {
                           </Typography>
                           {cycle.sprint_winner ? (
                             <Typography variant="body2" color="warning.dark" fontWeight={800}>
-                              {cycle.status === 'closed' || cycle.end_date < today ? 'Sprint winner' : 'Sprint leader'}: {cycle.sprint_winner.username} · 🏆 {cycle.sprint_winner.trophy_count}
+                              {cycle.status === 'closed' ? 'Cycle winner' : 'Cycle leader'}: {cycle.sprint_winner.username} · 🏆 {cycle.sprint_winner.trophy_count}
                             </Typography>
                           ) : null}
                           <Divider sx={{ my: 1 }} />
