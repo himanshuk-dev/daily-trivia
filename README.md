@@ -24,6 +24,8 @@ See [PLANNING.md](PLANNING.md) for the product requirements, role model, deliver
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the system design, data model, request flows, API map, permissions, and contributor reading guide.
 
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the Render + Neon free-tier deployment procedure and required secrets.
+
 ## Technology stack
 
 - Frontend: React 18, Vite 5, and Material UI

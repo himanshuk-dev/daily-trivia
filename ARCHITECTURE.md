@@ -357,6 +357,8 @@ Django      http://localhost:8000
 PostgreSQL  127.0.0.1:5432
 ```
 
+The prepared hosted topology uses a Render static site for React, a Render free Python web service running Gunicorn for Django, and an external Neon PostgreSQL database connected through `DATABASE_URL` with TLS. WhiteNoise serves Django admin static assets, `/api/health/` supports Render health checks, and `render.yaml` defines both monorepo services. Deployment instructions and free-tier limitations are documented in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 CORS permits the configured frontend origin to call Django. Production must use a non-default Django secret, disable debug mode, configure exact allowed hosts/origins, use production SMTP, and protect all secrets outside source control.
 
 ## 12. Testing strategy
