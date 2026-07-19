@@ -146,7 +146,14 @@ class EmailCodeAuthenticationTests(APITestCase):
 
         token = response.data['token']
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token}')
+        User.objects.create_user(username='existing-user', email='existing@example.com')
+        response = self.client.patch('/api/auth/me/', {'username': 'EXISTING-USER'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.client.patch('/api/auth/me/', {'username': 'himanshu-updated'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['username'], 'himanshu-updated')
         self.assertEqual(self.client.get('/api/auth/me/').status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get('/api/auth/me/').data['username'], 'himanshu-updated')
         self.assertEqual(self.client.get('/api/auth/me/').data['first_name'], 'Himanshu')
         self.assertEqual(self.client.post('/api/auth/logout/').status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual(self.client.get('/api/auth/me/').status_code, status.HTTP_401_UNAUTHORIZED)

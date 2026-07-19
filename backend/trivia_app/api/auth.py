@@ -13,7 +13,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from ..models import EmailLoginCode
-from ..serializers import UserSerializer
+from ..serializers import UsernameUpdateSerializer, UserSerializer
 from ..services.email_sender import EmailDeliveryError, send_login_code_email
 
 
@@ -102,9 +102,17 @@ def auth_verify_code(request):
     return Response({'token': token.key, 'user': user_payload(user)})
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def auth_me(request):
+    if request.method == 'PATCH':
+        serializer = UsernameUpdateSerializer(
+            data=request.data,
+            context={'user': request.user},
+        )
+        serializer.is_valid(raise_exception=True)
+        request.user.username = serializer.validated_data['username']
+        request.user.save(update_fields=['username'])
     return Response(user_payload(request.user))
 
 
