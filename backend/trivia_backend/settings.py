@@ -123,6 +123,7 @@ REST_FRAMEWORK = {
 }
 
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_DELIVERY_PROVIDER = os.getenv('EMAIL_DELIVERY_PROVIDER', 'smtp').strip().lower()
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@daily-trivia.local')
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
@@ -130,6 +131,9 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in {'1', 'true', 'yes', 'on'}
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
+BREVO_API_KEY = os.getenv('BREVO_API_KEY', '')
+BREVO_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL', 'noreply@daily-trivia.local')
+BREVO_SENDER_NAME = os.getenv('BREVO_SENDER_NAME', 'Daily Trivia')
 
 LOGIN_CODE_EXPIRY_MINUTES = int(os.getenv('LOGIN_CODE_EXPIRY_MINUTES', '10'))
 TRIVIA_ANSWER_WINDOW_HOURS = float(os.getenv('TRIVIA_ANSWER_WINDOW_HOURS', '24'))

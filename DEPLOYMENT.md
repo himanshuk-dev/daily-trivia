@@ -11,16 +11,15 @@ This repository includes a Render Blueprint for a free Django web service and a 
 3. Keep the complete query string, including `sslmode=require` and `channel_binding=require` when Neon supplies them.
 4. Save this value securely for Render's `DATABASE_URL` prompt.
 
-## 2. Choose an SMTP service
+## 2. Configure Brevo transactional email
 
-Production authentication sends one-time login codes by email. Obtain approved SMTP settings before deploying:
+Production authentication sends one-time login codes through Brevo's HTTPS API because Render free web services block outbound SMTP ports.
 
-- SMTP hostname and port
-- SMTP username and password
-- TLS requirement
-- Verified sender address
+1. Create and verify a sender in Brevo.
+2. Generate a Brevo API key for the production integration.
+3. Store the key only in Render's environment settings.
 
-The console email backend used locally is not suitable for deployment because users cannot see Render's server logs.
+Local development can continue using Gmail SMTP by setting `EMAIL_DELIVERY_PROVIDER=smtp`. Production uses `EMAIL_DELIVERY_PROVIDER=brevo`.
 
 ## 3. Create the Render Blueprint
 
@@ -38,10 +37,7 @@ The console email backend used locally is not suitable for deployment because us
 | API | `GROQ_API_KEY` | Groq API key |
 | API | `DJANGO_CORS_ALLOWED_ORIGINS` | Frontend origin, such as `https://daily-trivia-web.onrender.com` |
 | API | `DJANGO_CSRF_TRUSTED_ORIGINS` | Same HTTPS frontend origin |
-| API | `EMAIL_HOST` | Approved SMTP hostname |
-| API | `EMAIL_HOST_USER` | SMTP username |
-| API | `EMAIL_HOST_PASSWORD` | SMTP password |
-| API | `DEFAULT_FROM_EMAIL` | Verified sender address |
+| API | `BREVO_API_KEY` | Brevo production API key |
 | Web | `VITE_API_BASE_URL` | API URL ending in `/api`, such as `https://daily-trivia-api.onrender.com/api` |
 | Web | `VITE_AUTH_TOKEN_STORAGE_KEY` | Browser storage key, such as `daily-trivia-auth-token` |
 

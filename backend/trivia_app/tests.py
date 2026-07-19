@@ -1,6 +1,5 @@
 import re
 import os
-import smtplib
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -15,6 +14,7 @@ from rest_framework.test import APITestCase
 
 from trivia_app.models import EmailLoginCode, MasterCycle, Notification, Team, TeamMembership, TriviaSession
 from trivia_app.services.ai_generator import GROQ_BASE_URL, GeneratedQuestion, TriviaGenerator
+from trivia_app.services.email_sender import send_login_code_email
 
 
 class TriviaGeneratorTests(SimpleTestCase):
@@ -60,13 +60,47 @@ class TriviaGeneratorTests(SimpleTestCase):
 
 
 @override_settings(
+    EMAIL_DELIVERY_PROVIDER='brevo',
+    BREVO_API_KEY='test-brevo-key',
+    BREVO_SENDER_EMAIL='sender@example.com',
+    BREVO_SENDER_NAME='Daily Trivia',
+    EMAIL_TIMEOUT=10,
+    LOGIN_CODE_EXPIRY_MINUTES=10,
+)
+class BrevoEmailDeliveryTests(SimpleTestCase):
+    @patch('trivia_app.services.email_sender.httpx.post')
+    def test_sends_login_code_through_brevo_api(self, post):
+        post.return_value.raise_for_status.return_value = None
+
+        send_login_code_email(recipient='player@example.com', code='123456')
+
+        post.assert_called_once_with(
+            'https://api.brevo.com/v3/smtp/email',
+            headers={
+                'accept': 'application/json',
+                'api-key': 'test-brevo-key',
+                'content-type': 'application/json',
+            },
+            json={
+                'sender': {'email': 'sender@example.com', 'name': 'Daily Trivia'},
+                'to': [{'email': 'player@example.com'}],
+                'subject': 'Your Daily Trivia login code',
+                'textContent': 'Your Daily Trivia login code is 123456. It expires in 10 minutes.',
+            },
+            timeout=10,
+        )
+
+
+@override_settings(
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
     PLATFORM_ADMIN_EMAILS={'himanshu.kumar@ssc-spc.gc.ca'},
 )
 class EmailCodeAuthenticationTests(APITestCase):
-    @patch('trivia_app.api.auth.send_mail')
-    def test_email_delivery_failure_returns_bad_gateway_and_removes_code(self, send_mail):
-        send_mail.side_effect = smtplib.SMTPAuthenticationError(535, b'Authentication failed')
+    @patch('trivia_app.api.auth.send_login_code_email')
+    def test_email_delivery_failure_returns_bad_gateway_and_removes_code(self, send_email):
+        from trivia_app.services.email_sender import EmailDeliveryError
+
+        send_email.side_effect = EmailDeliveryError('Delivery failed')
 
         response = self.client.post(
             '/api/auth/request-code/',

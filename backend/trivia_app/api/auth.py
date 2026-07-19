@@ -1,12 +1,10 @@
 import logging
 import secrets
-import smtplib
 from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import User
-from django.core.mail import send_mail
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -16,6 +14,7 @@ from rest_framework.response import Response
 
 from ..models import EmailLoginCode
 from ..serializers import UserSerializer
+from ..services.email_sender import EmailDeliveryError, send_login_code_email
 
 
 logger = logging.getLogger(__name__)
@@ -63,13 +62,8 @@ def auth_request_code(request):
         expires_at=timezone.now() + timedelta(minutes=settings.LOGIN_CODE_EXPIRY_MINUTES),
     )
     try:
-        send_mail(
-            subject='Your Daily Trivia login code',
-            message=f'Your Daily Trivia login code is {code}. It expires in {settings.LOGIN_CODE_EXPIRY_MINUTES} minutes.',
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-        )
-    except (smtplib.SMTPException, OSError):
+        send_login_code_email(recipient=email, code=code)
+    except EmailDeliveryError:
         login_code.delete()
         logger.exception('Unable to send a login code email.')
         return Response(

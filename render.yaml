@@ -36,20 +36,14 @@ services:
         value: openai/gpt-oss-20b
       - key: TRIVIA_ANSWER_WINDOW_HOURS
         value: "24"
-      - key: EMAIL_BACKEND
-        value: django.core.mail.backends.smtp.EmailBackend
-      - key: EMAIL_HOST
+      - key: EMAIL_DELIVERY_PROVIDER
+        value: brevo
+      - key: BREVO_API_KEY
         sync: false
-      - key: EMAIL_PORT
-        value: "587"
-      - key: EMAIL_HOST_USER
-        sync: false
-      - key: EMAIL_HOST_PASSWORD
-        sync: false
-      - key: EMAIL_USE_TLS
-        value: "True"
-      - key: DEFAULT_FROM_EMAIL
-        sync: false
+      - key: BREVO_SENDER_EMAIL
+        value: dailytrivia.manager@gmail.com
+      - key: BREVO_SENDER_NAME
+        value: Daily Trivia
 
   - type: web
     name: daily-trivia-web
