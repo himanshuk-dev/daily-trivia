@@ -353,21 +353,39 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(notifications[0]['message'], 'New trivia is live: Space Basics')
         response = self.client.get(f'/api/trivia-sessions/{session_id}/')
         self.assertNotIn('correct_choice', response.data['questions'][0])
+        self.assertFalse(response.data['has_submitted'])
         response = self.client.post(f'/api/trivia-sessions/{session_id}/answers/', {
             'trivia_question': question_id,
             'selected_choice': 'Mars',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        response = self.client.get(f'/api/trivia-sessions/{session_id}/')
+        self.assertTrue(response.data['has_submitted'])
+        self.assertEqual(response.data['questions'][0]['selected_choice'], 'Mars')
+        self.assertNotIn('correct_choice', response.data['questions'][0])
 
         self.authenticate(self.master)
+        response = self.client.get(f'/api/trivia-sessions/{session_id}/')
+        self.assertFalse(response.data['has_submitted'])
+        response = self.client.post(f'/api/trivia-sessions/{session_id}/answers/', {
+            'trivia_question': question_id,
+            'selected_choice': 'Venus',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        response = self.client.get(f'/api/trivia-sessions/{session_id}/')
+        self.assertTrue(response.data['has_submitted'])
+        self.assertEqual(response.data['questions'][0]['selected_choice'], 'Venus')
         response = self.client.post(f'/api/trivia-sessions/{session_id}/evaluate/')
         self.assertEqual(response.data['trophies_awarded'], 1)
 
         response = self.client.get(f'/api/trivia-sessions/{session_id}/')
-        self.assertEqual(response.data['submission_count'], 1)
-        self.assertEqual(response.data['submissions'][0]['username'], self.player.username)
-        self.assertEqual(response.data['submissions'][0]['answers_submitted'], 1)
-        self.assertNotIn('selected_choice', response.data['submissions'][0])
+        self.assertEqual(response.data['submission_count'], 2)
+        player_submission = next(
+            submission for submission in response.data['submissions']
+            if submission['username'] == self.player.username
+        )
+        self.assertEqual(player_submission['answers_submitted'], 1)
+        self.assertNotIn('selected_choice', player_submission)
 
         self.authenticate(self.player)
         response = self.client.get(f"/api/leaderboard/?team={team['id']}")
@@ -407,7 +425,13 @@ class TeamTriviaWorkflowTests(APITestCase):
         overview_team = next(item for item in response.data['teams'] if item['id'] == team['id'])
         self.assertEqual(len(overview_team['members']), 3)
         self.assertEqual(overview_team['trivia_sessions'][0]['title'], 'Space Basics')
-        self.assertEqual(overview_team['trivia_sessions'][0]['submissions'][0]['username'], self.player.username)
+        self.assertIn(
+            self.player.username,
+            {
+                submission['username']
+                for submission in overview_team['trivia_sessions'][0]['submissions']
+            },
+        )
         self.assertEqual(overview_team['leaderboard'][0]['username'], self.player.username)
         response = self.client.get('/api/leaderboard/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)

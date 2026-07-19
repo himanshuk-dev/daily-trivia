@@ -1,4 +1,4 @@
-import { Button, Card, CardContent, Divider, Grid, List, ListItem, ListItemText, MenuItem, Stack, TextField, Typography } from '@mui/material'
+import { Backdrop, Box, Button, Card, CardContent, CircularProgress, Divider, Grid, List, ListItem, ListItemText, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material'
 import { formatDate } from '../utils/dates'
 
 const suggestedTopics = [
@@ -7,7 +7,7 @@ const suggestedTopics = [
   'Nature and Wildlife', 'Science', 'Space', 'Sports', 'Technology', 'World History',
 ]
 
-export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQuestion, onSave, onGenerate }) {
+export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQuestion, onSave, onGenerate, isGenerating }) {
   if (!cycles.length) return null
   const selectedCycle = cycles.find((cycle) => String(cycle.id) === String(builder.cycleId))
   const today = formatDate(new Date())
@@ -64,9 +64,20 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
           ))}</List>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Button variant="contained" onClick={onSave} disabled={!builder.cycleId || builder.questions.length === 0}>{builder.sessionId ? 'Save draft changes' : 'Create manual draft'}</Button>
-            <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || !builder.aiTopic || Boolean(builder.sessionId)}>Generate & publish AI question</Button>
+            <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || !builder.aiTopic || Boolean(builder.sessionId) || isGenerating}>
+              {isGenerating ? 'Generating trivia…' : 'Generate & publish AI question'}
+            </Button>
           </Stack>
         </Stack>
+        <Backdrop open={isGenerating} sx={{ color: 'white', zIndex: (theme) => theme.zIndex.modal + 1 }}>
+          <Paper sx={{ p: 4, borderRadius: 4, textAlign: 'center', maxWidth: 420 }}>
+            <CircularProgress color="secondary" size={56} />
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" fontWeight={800}>Creating today’s trivia…</Typography>
+              <Typography color="text.secondary">AI is preparing and publishing one question. This may take a few moments.</Typography>
+            </Box>
+          </Paper>
+        </Backdrop>
       </CardContent></Card>
     </Grid>
   )

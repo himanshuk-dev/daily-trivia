@@ -2,7 +2,7 @@ import { Alert, Box, Button, Card, CardContent, Grid, MenuItem, Paper, Radio, Ra
 
 const fallbackChoices = ['Option A', 'Option B', 'Option C', 'Option D']
 
-export function LiveTrivia({ session, sessions, questions, choices, setChoices, canManage, onSubmit, onPublish, onEvaluate, onLoadSession }) {
+export function LiveTrivia({ session, sessions, questions, choices, setChoices, canManage, isSubmitting, onSubmit, onPublish, onEvaluate, onLoadSession }) {
   const answersClosed = Boolean(session && (
     session.status === 'closed' || (session.close_at && new Date(session.close_at) <= new Date())
   ))
@@ -55,12 +55,18 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
               </Paper>
             ) : null}
             {answersClosed ? <Alert severity="success">This trivia has ended. Correct answers and your submitted answers are shown below.</Alert> : null}
+            {session.has_submitted && !answersClosed ? (
+              <Alert severity="success">
+                Your answer is submitted. Results will be available after the Trivia Master closes and evaluates the trivia.
+                {session.close_at ? ` This trivia closes ${new Date(session.close_at).toLocaleString()}.` : ''}
+              </Alert>
+            ) : null}
             {questions.map((question, index) => (
               <Paper key={question.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
                 <Typography fontWeight={700} gutterBottom>Q{index + 1}. {question.prompt}</Typography>
-                <RadioGroup value={answersClosed ? (question.selected_choice ?? '') : (choices[question.id] ?? question.choices?.[0] ?? 'Option A')} onChange={(event) => setChoices((current) => ({ ...current, [question.id]: event.target.value }))}>
+                <RadioGroup value={answersClosed || session.has_submitted ? (question.selected_choice ?? '') : (choices[question.id] ?? question.choices?.[0] ?? 'Option A')} onChange={(event) => setChoices((current) => ({ ...current, [question.id]: event.target.value }))}>
                   {(question.choices?.length ? question.choices : fallbackChoices).map((choice) => (
-                    <Box key={choice} sx={{ display: 'flex', alignItems: 'center' }}><Radio value={choice} disabled={answersClosed} /><Typography fontWeight={answersClosed && choice === question.correct_choice ? 800 : 400} color={answersClosed && choice === question.correct_choice ? 'success.main' : 'text.primary'}>{choice}{answersClosed && choice === question.correct_choice ? ' — Correct answer' : ''}</Typography></Box>
+                    <Box key={choice} sx={{ display: 'flex', alignItems: 'center' }}><Radio value={choice} disabled={answersClosed || session.has_submitted} /><Typography fontWeight={answersClosed && choice === question.correct_choice ? 800 : 400} color={answersClosed && choice === question.correct_choice ? 'success.main' : 'text.primary'}>{choice}{answersClosed && choice === question.correct_choice ? ' — Correct answer' : ''}</Typography></Box>
                   ))}
                 </RadioGroup>
                 {answersClosed ? (
@@ -72,7 +78,9 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
               </Paper>
             ))}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <Button variant="contained" onClick={onSubmit} disabled={session.status !== 'live' || answersClosed}>Submit answer</Button>
+              <Button variant="contained" onClick={onSubmit} disabled={session.status !== 'live' || answersClosed || session.has_submitted || isSubmitting}>
+                {isSubmitting ? 'Submitting…' : session.has_submitted ? 'Answer submitted' : 'Submit answer'}
+              </Button>
               {canManage && session.status === 'draft' ? <Button variant="outlined" onClick={onPublish}>Publish session</Button> : null}
               {canManage && session.status === 'live' ? <Button variant="outlined" onClick={onEvaluate}>Close and evaluate</Button> : null}
             </Stack>

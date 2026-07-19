@@ -161,8 +161,13 @@ def trivia_session_retrieve(request, pk: int):
 
     answer_window_closed = bool(session.close_at and timezone.now() >= session.close_at)
     can_manage = can_manage_cycle(request.user, session.master_cycle)
+    answers_by_question = {
+        answer.trivia_question_id: answer
+        for answer in UserAnswer.objects.filter(trivia_session=session, user=request.user)
+    }
     if can_manage or answer_window_closed or session.status == TriviaSession.Status.CLOSED:
         data = TriviaSessionSerializer(session).data
+        data['has_submitted'] = bool(answers_by_question)
         if can_manage:
             submissions = session.answers.values('user_id', 'user__username').annotate(
                 answers_submitted=Count('id'),
@@ -179,18 +184,23 @@ def trivia_session_retrieve(request, pk: int):
             ]
             data['submission_count'] = len(data['submissions'])
         if answer_window_closed or session.status == TriviaSession.Status.CLOSED:
-            answers_by_question = {
-                answer.trivia_question_id: answer
-                for answer in UserAnswer.objects.filter(trivia_session=session, user=request.user)
-            }
             for question in data['questions']:
                 answer = answers_by_question.get(question['id'])
                 question['selected_choice'] = answer.selected_choice if answer else None
                 question['is_correct'] = bool(answer and answer.selected_choice == question['correct_choice'])
+        elif answers_by_question:
+            for question in data['questions']:
+                answer = answers_by_question.get(question['id'])
+                question['selected_choice'] = answer.selected_choice if answer else None
         return Response(data)
 
     data = TriviaSessionSerializer(session).data
     data['questions'] = PublicTriviaQuestionSerializer(session.questions.all(), many=True).data
+    data['has_submitted'] = bool(answers_by_question)
+    if answers_by_question:
+        for question in data['questions']:
+            answer = answers_by_question.get(question['id'])
+            question['selected_choice'] = answer.selected_choice if answer else None
     return Response(data)
 
 

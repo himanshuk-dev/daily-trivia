@@ -11,6 +11,7 @@ import {
   CssBaseline,
   Divider,
   Grid,
+  Link,
   List,
   ListItem,
   ListItemText,
@@ -24,6 +25,7 @@ import {
   Typography,
 } from '@mui/material'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
+import GitHubIcon from '@mui/icons-material/GitHub'
 import { api } from './api'
 import { AppHeader } from './components/AppHeader'
 import { AuthScreen } from './components/AuthScreen'
@@ -71,6 +73,8 @@ export default function App() {
   })
   const [activeSession, setActiveSession] = useState(null)
   const [selectedChoices, setSelectedChoices] = useState({})
+  const [isGeneratingTrivia, setIsGeneratingTrivia] = useState(false)
+  const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false)
   const [message, setMessage] = useState('')
   const [builder, setBuilder] = useState({
     cycleId: '',
@@ -473,6 +477,7 @@ export default function App() {
   }
 
   const handleGenerateTrivia = async () => {
+    setIsGeneratingTrivia(true)
     try {
       const session = await api.generateTrivia(builder.cycleId, { title: builder.title, topic: builder.aiTopic })
       setCycles(await api.getMasterCycles())
@@ -487,6 +492,8 @@ export default function App() {
       setMessage(`AI generated and published ${session.title}. Answers close ${closesAt}.`)
     } catch (error) {
       setMessage(error.message)
+    } finally {
+      setIsGeneratingTrivia(false)
     }
   }
 
@@ -599,16 +606,28 @@ export default function App() {
       return
     }
 
-    await Promise.all(
-      activeQuestions.map((question) =>
-        api.submitAnswer(activeSession.id, {
-          user: createdUser.id,
-          trivia_question: question.id,
-          selected_choice: selectedChoices[question.id] ?? question.choices?.[0] ?? 'Option A',
-        }),
-      ),
-    )
-    setMessage('Answers submitted.')
+    setIsSubmittingAnswers(true)
+    try {
+      await Promise.all(
+        activeQuestions.map((question) =>
+          api.submitAnswer(activeSession.id, {
+            user: createdUser.id,
+            trivia_question: question.id,
+            selected_choice: selectedChoices[question.id] ?? question.choices?.[0] ?? 'Option A',
+          }),
+        ),
+      )
+      const refreshedSession = await api.getTriviaSession(activeSession.id)
+      setActiveSession(refreshedSession)
+      const closesAt = refreshedSession.close_at
+        ? new Date(refreshedSession.close_at).toLocaleString()
+        : 'the scheduled deadline'
+      setMessage(`Answers submitted. Results will be available after the Trivia Master closes and evaluates the trivia. This trivia closes ${closesAt}.`)
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setIsSubmittingAnswers(false)
+    }
   }
 
   return (
@@ -857,6 +876,7 @@ export default function App() {
               onAddQuestion={handleAddQuestion}
               onSave={handleCreateTrivia}
               onGenerate={handleGenerateTrivia}
+              isGenerating={isGeneratingTrivia}
             />
             <LiveTrivia
               session={activeSession}
@@ -865,6 +885,7 @@ export default function App() {
               choices={selectedChoices}
               setChoices={setSelectedChoices}
               canManage={canManageActiveSession}
+              isSubmitting={isSubmittingAnswers}
               onSubmit={handleSubmitAnswer}
               onPublish={handlePublishSession}
               onEvaluate={handleEvaluateSession}
@@ -872,6 +893,38 @@ export default function App() {
             />
           </Grid>
         </Container>
+        <Box component="footer" sx={{ mt: 5, pb: 1, textAlign: 'center' }}>
+          <Link
+            href="https://github.com/himanshuk-dev/daily-trivia"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="inherit"
+            underline="hover"
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 1,
+              color: 'white',
+              fontWeight: 700,
+            }}
+          >
+            <GitHubIcon fontSize="small" />
+            himanshuk-dev/daily-trivia
+          </Link>
+          <Typography variant="body2" sx={{ mt: 1, color: 'rgba(255, 255, 255, 0.85)' }}>
+            Report issues or suggest features under{' '}
+            <Link
+              href="https://github.com/himanshuk-dev/daily-trivia/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              color="inherit"
+              fontWeight={800}
+            >
+              Issues
+            </Link>{' '}
+            on GitHub.
+          </Typography>
+        </Box>
       </Box>
     </>
   )
