@@ -24,6 +24,11 @@ def user_payload(user: User) -> dict:
     return UserSerializer(user).data
 
 
+def email_domain_is_allowed(email: str) -> bool:
+    local_part, separator, domain = email.rpartition('@')
+    return bool(local_part and separator and domain in settings.ALLOWED_EMAIL_DOMAINS)
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def auth_request_code(request):
@@ -33,6 +38,11 @@ def auth_request_code(request):
     last_name = request.data.get('last_name', '').strip()
     if not email:
         return Response({'email': ['Email is required.']}, status=status.HTTP_400_BAD_REQUEST)
+    if not email_domain_is_allowed(email):
+        return Response(
+            {'email': ['Use an SSC email address ending in @ssc-spc.gc.ca.']},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     user = User.objects.filter(email__iexact=email).first()
     if user is None:
@@ -78,6 +88,11 @@ def auth_request_code(request):
 def auth_verify_code(request):
     email = request.data.get('email', '').strip().lower()
     code = request.data.get('code', '').strip()
+    if not email_domain_is_allowed(email):
+        return Response(
+            {'email': ['Use an SSC email address ending in @ssc-spc.gc.ca.']},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     user = User.objects.filter(email__iexact=email).first()
     login_code = EmailLoginCode.objects.filter(user=user, used_at__isnull=True).first() if user else None
 
