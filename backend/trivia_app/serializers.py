@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Count
 from rest_framework import serializers
 
@@ -10,6 +11,21 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'date_joined']
         read_only_fields = ['id', 'is_staff', 'date_joined']
+
+
+class UsernameUpdateSerializer(serializers.Serializer):
+    username = serializers.CharField(
+        max_length=150,
+        validators=[UnicodeUsernameValidator()],
+    )
+
+    def validate_username(self, value):
+        username = value.strip()
+        if not username:
+            raise serializers.ValidationError('Username cannot be blank.')
+        if User.objects.filter(username__iexact=username).exclude(pk=self.context['user'].pk).exists():
+            raise serializers.ValidationError('This username is already in use.')
+        return username
 
 
 class TriviaQuestionSerializer(serializers.ModelSerializer):

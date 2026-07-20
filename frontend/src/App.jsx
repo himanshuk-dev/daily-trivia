@@ -1,39 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Alert,
-  AppBar,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Container,
-  CssBaseline,
-  Divider,
-  Grid,
-  Link,
-  List,
-  ListItem,
-  ListItemText,
-  MenuItem,
-  Paper,
-  Radio,
-  RadioGroup,
-  Stack,
-  TextField,
-  Toolbar,
-  Typography,
-} from '@mui/material'
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
-import GitHubIcon from '@mui/icons-material/GitHub'
+import { Alert, Box, Container, CssBaseline, Grid, Typography } from '@mui/material'
 import { api } from './api'
+import { AccountCard } from './components/AccountCard'
 import { AppHeader } from './components/AppHeader'
 import { AuthScreen } from './components/AuthScreen'
+import { CurrentCyclesCard } from './components/CurrentCyclesCard'
+import { HeroBanner } from './components/HeroBanner'
+import { LeaderboardCard } from './components/LeaderboardCard'
 import { LiveTrivia } from './components/LiveTrivia'
 import { MasterAssignment } from './components/MasterAssignment'
 import { PlatformAdminPanel } from './components/PlatformAdminPanel'
 import { PlatformOverview } from './components/PlatformOverview'
+import { SiteFooter } from './components/SiteFooter'
 import { TeamAdministration } from './components/TeamAdministration'
+import { TeamSelectorCard } from './components/TeamSelectorCard'
 import { TriviaBuilder } from './components/TriviaBuilder'
 import { UserManagement } from './components/UserManagement'
 import { addDays, formatDate } from './utils/dates'
@@ -113,6 +93,30 @@ export default function App() {
     api.getMasterCycles().then(setCycles).catch(() => setCycles([]))
     api.getNotifications().then(setNotifications).catch(() => setNotifications([]))
   }, [createdUser])
+
+  const handleUpdateUsername = async (username) => {
+    try {
+      const previousUsername = createdUser.username
+      const updatedUser = await api.updateMe({ username })
+      setCreatedUser(updatedUser)
+      setUsers((current) => current.map((user) => user.id === updatedUser.id ? updatedUser : user))
+      setMasterCycle((current) => ({
+        ...current,
+        master_username: current.master_username === previousUsername
+          ? updatedUser.username
+          : current.master_username,
+      }))
+      setCycles(await api.getMasterCycles())
+      if (selectedTeamId && (updatedUser.is_staff || selectedTeam?.membership_role === 'team_admin')) {
+        setTeamMembers(await api.getTeamMembers(selectedTeamId))
+      }
+      setMessage(`Username updated to ${updatedUser.username}.`)
+      return true
+    } catch (error) {
+      setMessage(error.message)
+      return false
+    }
+  }
 
   useEffect(() => {
     if (!createdUser?.is_staff || dashboardView !== 'admin') return
@@ -289,6 +293,18 @@ export default function App() {
       setLeaderboard([])
       setAuthStep('request')
       setMessage('You have been logged out.')
+    }
+  }
+
+  const handleMarkNotificationsRead = async () => {
+    try {
+      await api.markNotificationsRead()
+      setNotifications((current) => current.map((item) => ({
+        ...item,
+        read_at: item.read_at ?? new Date().toISOString(),
+      })))
+    } catch (error) {
+      setMessage(error.message)
     }
   }
 
@@ -637,177 +653,32 @@ export default function App() {
 
       <Box className="app-shell" sx={{ py: 4, minHeight: '100vh' }}>
         <Container maxWidth="lg">
-          <Box className="hero-panel" sx={{ color: 'white', mb: 4 }}>
-            <Typography variant="overline" letterSpacing={4}>
-              ✦ Biweekly trivia battles ✦
-            </Typography>
-            <Typography variant="h2" fontWeight={900} sx={{ maxWidth: 760 }}>
-              Big questions. Bright ideas. <span className="hero-pop">Bragging rights.</span>
-            </Typography>
-            <Typography sx={{ maxWidth: 680, mt: 1.5, fontSize: { xs: '1rem', md: '1.15rem' } }}>
-              Play master-approved trivia with your team and turn every clever answer into a trophy.
-            </Typography>
-          </Box>
+          <HeroBanner />
 
           {message ? <Alert severity="info" sx={{ mb: 3 }}>{message}</Alert> : null}
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ borderRadius: 4 }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Your account
-                  </Typography>
-                  <Stack spacing={2}>
-                    <Chip
-                      label={`Signed in: ${[createdUser.first_name, createdUser.last_name].filter(Boolean).join(' ') || createdUser.username}`}
-                      color="success"
-                    />
-                    <Typography variant="body2" color="text.secondary">{createdUser.email}</Typography>
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Roles</Typography>
-                      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                        {createdUser.is_staff ? <Chip label="Platform admin" color="primary" /> : null}
-                        {teams.filter((team) => team.membership_role || team.membership_status).map((team) => (
-                          <Chip
-                            key={team.id}
-                            variant="outlined"
-                            color={team.membership_status === 'pending' ? 'warning' : team.membership_status === 'rejected' ? 'error' : team.membership_role === 'team_admin' ? 'secondary' : 'default'}
-                            label={`${team.name}: ${
-                              team.membership_status === 'pending'
-                                ? 'Pending'
-                                : team.membership_status === 'rejected'
-                                  ? 'Rejected'
-                                : team.membership_role === 'team_admin'
-                                  ? 'Team admin'
-                                  : team.membership_role === 'member'
-                                    ? 'Member'
-                                    : 'Member'
-                            }`}
-                          />
-                        ))}
-                        {cycles.filter((cycle) => cycle.master_name === createdUser.username && cycle.status === 'active').map((cycle) => (
-                          <Chip key={`master-${cycle.id}`} label={`Trivia master: ${cycle.topic}`} color="warning" />
-                        ))}
-                        {!createdUser.is_staff && teams.length === 0 ? <Chip label="No team role yet" variant="outlined" /> : null}
-                      </Stack>
-                    </Box>
-                    <Typography variant="body2">{notifications.filter((item) => !item.read_at).length} unread notifications</Typography>
-                    {notifications.filter((item) => !item.read_at).slice(0, 2).map((notification) => (
-                      <Alert key={notification.id} severity="info">{notification.message}</Alert>
-                    ))}
-                    {notifications.some((item) => !item.read_at) ? (
-                      <Button size="small" onClick={async () => { await api.markNotificationsRead(); setNotifications((current) => current.map((item) => ({ ...item, read_at: new Date().toISOString() }))) }}>Mark read</Button>
-                    ) : null}
-                    <Button variant="outlined" onClick={handleLogout}>Logout</Button>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Card sx={{ borderRadius: 4, height: '100%' }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Current cycles
-                  </Typography>
-                  <List dense disablePadding>
-                    {cycles.length === 0 ? (
-                      <ListItem disableGutters>
-                        <ListItemText primary="No cycles yet" secondary="Use the Add master form below." />
-                      </ListItem>
-                    ) : (
-                      cycles.map((cycle) => (
-                        <Box key={cycle.id} sx={{ mb: 2 }}>
-                          <Typography fontWeight={700}>{cycle.topic}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Master: {cycle.master_name} | Status: {cycle.status}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {cycle.start_date} to {cycle.end_date}
-                          </Typography>
-                          {cycle.sprint_winner ? (
-                            <Typography variant="body2" color="warning.dark" fontWeight={800}>
-                              {cycle.status === 'closed' ? 'Cycle winner' : 'Cycle leader'}: {cycle.sprint_winner.username} · 🏆 {cycle.sprint_winner.trophy_count}
-                            </Typography>
-                          ) : null}
-                          <Divider sx={{ my: 1 }} />
-                        </Box>
-                      ))
-                    )}
-                  </List>
-                  <Button sx={{ mt: 1 }} variant="outlined" onClick={handleLoadFirstSession}>
-                    Load current or latest trivia
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Card sx={{ borderRadius: 4, height: '100%' }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Public leaderboard
-                  </Typography>
-                  <Stack spacing={1}>
-                    {leaderboard.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        Leaderboard appears after correct answers are evaluated.
-                      </Typography>
-                    ) : (
-                      leaderboard.map((entry, index) => (
-                        <Paper key={entry.user_id} variant="outlined" sx={{ p: 1.5, borderRadius: 3 }}>
-                          <Stack direction="row" justifyContent="space-between" alignItems="center">
-                            <Typography fontWeight={700}>
-                              #{index + 1} {entry.username}
-                            </Typography>
-                            <Chip
-                              icon={<EmojiEventsIcon />}
-                              label={entry.trophy_count}
-                              color="warning"
-                              aria-label={`${entry.trophy_count} ${entry.trophy_count === 1 ? 'trophy' : 'trophies'}`}
-                              sx={{ fontWeight: 800 }}
-                            />
-                          </Stack>
-                        </Paper>
-                      ))
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Card sx={{ borderRadius: 4 }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>Teams</Typography>
-                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
-                    <TextField
-                      select
-                      fullWidth
-                      label="Current team"
-                      value={selectedTeamId}
-                      onChange={(event) => setSelectedTeamId(event.target.value)}
-                    >
-                      {teams.map((team) => (
-                        <MenuItem key={team.id} value={String(team.id)}>
-                          {team.name} ({team.approval_required ? 'approval required' : 'approved'})
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                    <TextField label="Invite code" value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} fullWidth />
-                    <Button variant="outlined" onClick={handleJoinTeam} disabled={!inviteCode.trim()} sx={{ minWidth: 120 }}>Join team</Button>
-                  </Stack>
-                  {selectedTeam ? (
-                    <Alert severity={selectedTeam.approval_required ? 'warning' : 'success'}>
-                      {selectedTeam.name} · {selectedTeam.member_count} members
-                      {selectedTeam.approval_required ? ' · New members require approval' : ' · New members are approved immediately'}
-                      {canManageSelectedTeam ? ` · Invite code: ${selectedTeam.invite_code}` : ''}
-                    </Alert>
-                  ) : <Typography color="text.secondary">Join a team to access its trivia.</Typography>}
-                </CardContent>
-              </Card>
-            </Grid>
+            <AccountCard
+              user={createdUser}
+              teams={teams}
+              cycles={cycles}
+              notifications={notifications}
+              onUpdateUsername={handleUpdateUsername}
+              onMarkNotificationsRead={handleMarkNotificationsRead}
+              onLogout={handleLogout}
+            />
+            <CurrentCyclesCard cycles={cycles} onLoadTrivia={handleLoadFirstSession} />
+            <LeaderboardCard leaderboard={leaderboard} />
+            <TeamSelectorCard
+              teams={teams}
+              selectedTeam={selectedTeam}
+              selectedTeamId={selectedTeamId}
+              inviteCode={inviteCode}
+              canManage={canManageSelectedTeam}
+              onTeamChange={setSelectedTeamId}
+              onInviteCodeChange={setInviteCode}
+              onJoinTeam={handleJoinTeam}
+            />
 
             {createdUser.is_staff && dashboardView === 'admin' ? (
               <>
@@ -893,38 +764,7 @@ export default function App() {
             />
           </Grid>
         </Container>
-        <Box component="footer" sx={{ mt: 5, pb: 1, textAlign: 'center' }}>
-          <Link
-            href="https://github.com/himanshuk-dev/daily-trivia"
-            target="_blank"
-            rel="noopener noreferrer"
-            color="inherit"
-            underline="hover"
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 1,
-              color: 'white',
-              fontWeight: 700,
-            }}
-          >
-            <GitHubIcon fontSize="small" />
-            himanshuk-dev/daily-trivia
-          </Link>
-          <Typography variant="body2" sx={{ mt: 1, color: 'rgba(255, 255, 255, 0.85)' }}>
-            Report issues or suggest features under{' '}
-            <Link
-              href="https://github.com/himanshuk-dev/daily-trivia/issues"
-              target="_blank"
-              rel="noopener noreferrer"
-              color="inherit"
-              fontWeight={800}
-            >
-              Issues
-            </Link>{' '}
-            on GitHub.
-          </Typography>
-        </Box>
+        <SiteFooter />
       </Box>
     </>
   )

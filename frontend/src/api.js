@@ -37,6 +37,7 @@ export const api = {
   requestCode: (payload) => request('/auth/request-code/', { method: 'POST', body: JSON.stringify(payload) }),
   verifyCode: (payload) => request('/auth/verify-code/', { method: 'POST', body: JSON.stringify(payload) }),
   getMe: () => request('/auth/me/'),
+  updateMe: (payload) => request('/auth/me/', { method: 'PATCH', body: JSON.stringify(payload) }),
   logout: () => request('/auth/logout/', { method: 'POST' }),
   getUsers: () => request('/users/'),
   setPlatformAdmin: (userId, isAdmin) => request(`/admin/users/${userId}/`, {
