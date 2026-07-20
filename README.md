@@ -131,6 +131,14 @@ The frontend runs at `http://localhost:5173/` and uses `http://localhost:8000/ap
 
 Local development uses Django's console email backend. When the application requests a login or registration code, the email and its one-time code appear in the backend terminal instead of being sent through SMTP.
 
+Daily Trivia is currently restricted to SSC users. Login and registration codes are only issued to exact `@ssc-spc.gc.ca` email addresses. The restriction is enforced by the backend and applies in both development and production:
+
+```dotenv
+ALLOWED_EMAIL_DOMAINS=ssc-spc.gc.ca
+```
+
+Changing frontend validation or CORS configuration does not change this access restriction.
+
 The initial platform administrator is configured with:
 
 ```dotenv
@@ -194,6 +202,7 @@ The complete template is in [.env.example](.env.example). Important settings inc
 | `DJANGO_CORS_ALLOWED_ORIGINS` | Frontend origins allowed to call the API |
 | `POSTGRES_*` | PostgreSQL connection settings |
 | `PLATFORM_ADMIN_EMAILS` | Initial platform-administrator email addresses |
+| `ALLOWED_EMAIL_DOMAINS` | Exact email domains permitted to register and sign in; currently `ssc-spc.gc.ca` |
 | `LOGIN_CODE_EXPIRY_MINUTES` | Lifetime of email login codes |
 | `EMAIL_*` | Console or production SMTP configuration |
 | `GROQ_API_KEY` | Optional Groq key for AI trivia generation |
@@ -215,7 +224,11 @@ The complete template is in [.env.example](.env.example). Important settings inc
 9. Correct answers produce trophies.
 10. Correct participants receive trophies reflected in the cycle leaderboard.
 11. After the custom end date and any open answer window pass, the cycle closes and announces the winner—or tied winners—to the master, approved team members, and platform administrators.
-11. Team members can reopen completed trivia to review the correct answer, explanation, and their own submission.
+12. Team members can reopen completed trivia to review the correct answer, explanation, and their own submission.
+
+## Future expansion
+
+Introduce proper organization/tenant support only if Daily Trivia will serve other departments or companies. That expansion should use an explicit organization model and isolate memberships, teams, roles, cycles, trivia sessions, notifications, leaderboards, and administration data by organization. Adding more domains to the allowlist alone is not sufficient multi-tenant isolation.
 
 ## Troubleshooting
 

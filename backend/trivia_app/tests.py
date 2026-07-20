@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.core import mail
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
@@ -94,6 +95,7 @@ class BrevoEmailDeliveryTests(SimpleTestCase):
 @override_settings(
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
     PLATFORM_ADMIN_EMAILS={'himanshu.kumar@ssc-spc.gc.ca'},
+    ALLOWED_EMAIL_DOMAINS={'ssc-spc.gc.ca'},
 )
 class EmailCodeAuthenticationTests(APITestCase):
     @patch('trivia_app.api.auth.send_login_code_email')
@@ -104,7 +106,7 @@ class EmailCodeAuthenticationTests(APITestCase):
 
         response = self.client.post(
             '/api/auth/request-code/',
-            {'username': 'test-user', 'email': 'test@example.com'},
+            {'username': 'test-user', 'email': 'test.user@ssc-spc.gc.ca'},
             format='json',
         )
 
@@ -114,6 +116,40 @@ class EmailCodeAuthenticationTests(APITestCase):
             'The login email could not be sent. Please try again later.',
         )
         self.assertFalse(EmailLoginCode.objects.exists())
+
+    @patch('trivia_app.api.auth.send_login_code_email')
+    def test_external_email_domain_cannot_register_or_receive_code(self, send_email):
+        response = self.client.post(
+            '/api/auth/request-code/',
+            {'username': 'external-user', 'email': 'person@example.com'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data['email'],
+            ['Use an SSC email address ending in @ssc-spc.gc.ca.'],
+        )
+        self.assertFalse(User.objects.filter(username='external-user').exists())
+        self.assertFalse(EmailLoginCode.objects.exists())
+        send_email.assert_not_called()
+
+    def test_external_email_domain_cannot_verify_an_existing_code(self):
+        user = User.objects.create_user(username='legacy-external', email='person@example.com')
+        EmailLoginCode.objects.create(
+            user=user,
+            code_hash=make_password('123456'),
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
+
+        response = self.client.post(
+            '/api/auth/verify-code/',
+            {'email': 'person@example.com', 'code': '123456'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Token.objects.filter(user=user).exists())
 
     def test_registration_verification_and_logout(self):
         email = 'himanshu.kumar@ssc-spc.gc.ca'

@@ -136,6 +136,9 @@ BREVO_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL', 'noreply@daily-trivia.local
 BREVO_SENDER_NAME = os.getenv('BREVO_SENDER_NAME', 'Daily Trivia')
 
 LOGIN_CODE_EXPIRY_MINUTES = int(os.getenv('LOGIN_CODE_EXPIRY_MINUTES', '10'))
+ALLOWED_EMAIL_DOMAINS = {
+    domain.lower() for domain in env_list('ALLOWED_EMAIL_DOMAINS', 'ssc-spc.gc.ca')
+}
 TRIVIA_ANSWER_WINDOW_HOURS = float(os.getenv('TRIVIA_ANSWER_WINDOW_HOURS', '24'))
 if TRIVIA_ANSWER_WINDOW_HOURS <= 0:
     raise ValueError('TRIVIA_ANSWER_WINDOW_HOURS must be greater than zero.')
