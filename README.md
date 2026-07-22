@@ -4,6 +4,12 @@ Daily Trivia is a team-based trivia platform where a designated trivia master cr
 
 The application supports passwordless email-code authentication, multiple teams, team administration, invite-based membership, public leaderboards, notifications, and AI-assisted question generation.
 
+## Demo
+
+https://github.com/user-attachments/assets/3c261f08-237d-4705-bb53-1ed5acf55d2c
+
+
+
 ## Features
 
 - Passwordless registration with first name, last name, username, email, and short-lived email codes
