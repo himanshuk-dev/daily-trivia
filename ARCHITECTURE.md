@@ -295,7 +295,9 @@ The assigned master or a platform administrator evaluates the session. Within on
 
 The unique trophy constraint makes repeated evaluation idempotent for awards: a user cannot receive a duplicate trophy for the same session.
 
-The leaderboard counts trophy records, optionally filtered by team, and sorts by trophy count descending and username ascending.
+The leaderboard counts trophy records, optionally filtered by team, and sorts by trophy count descending. When scores tie, the participant whose correct answer was submitted first ranks higher; username is only the final deterministic fallback.
+
+Closed trivia question and submitted-answer details are retained for 17 days and then removed by the retention service. Session summaries, master cycles, trophies, cycle leaderboards, and winners remain. The cycle API returns the latest three cycles per team to regular users and team administrators, while platform administrators receive the complete cycle history.
 
 ## 10. API surface
 

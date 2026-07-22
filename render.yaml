@@ -36,6 +36,8 @@ services:
         value: openai/gpt-oss-20b
       - key: TRIVIA_ANSWER_WINDOW_HOURS
         value: "24"
+      - key: TRIVIA_QUESTION_RETENTION_DAYS
+        value: "17"
       - key: EMAIL_DELIVERY_PROVIDER
         value: brevo
       - key: BREVO_API_KEY
