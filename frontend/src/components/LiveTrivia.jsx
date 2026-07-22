@@ -2,10 +2,13 @@ import { Alert, Box, Button, Card, CardContent, Grid, MenuItem, Paper, Radio, Ra
 
 const fallbackChoices = ['Option A', 'Option B', 'Option C', 'Option D']
 
-export function LiveTrivia({ session, sessions, questions, choices, setChoices, canManage, isSubmitting, onSubmit, onPublish, onEvaluate, onLoadSession }) {
+export function LiveTrivia({ session, sessions, questions, choices, setChoices, canManage, isCycleMaster, isSubmitting, onSubmit, onPublish, onEvaluate, onLoadSession }) {
   const answersClosed = Boolean(session && (
     session.status === 'closed' || (session.close_at && new Date(session.close_at) <= new Date())
   ))
+  const masterCannotAnswer = Boolean(
+    session?.generation_method === 'manual' && isCycleMaster,
+  )
 
   return (
     <Grid item xs={12}>
@@ -61,12 +64,15 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
                 {session.close_at ? ` This trivia closes ${new Date(session.close_at).toLocaleString()}.` : ''}
               </Alert>
             ) : null}
+            {masterCannotAnswer && !answersClosed ? (
+              <Alert severity="info">You created this trivia manually, so you can manage it but cannot submit an answer.</Alert>
+            ) : null}
             {questions.map((question, index) => (
               <Paper key={question.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
                 <Typography fontWeight={700} gutterBottom>Q{index + 1}. {question.prompt}</Typography>
                 <RadioGroup value={answersClosed || session.has_submitted ? (question.selected_choice ?? '') : (choices[question.id] ?? question.choices?.[0] ?? 'Option A')} onChange={(event) => setChoices((current) => ({ ...current, [question.id]: event.target.value }))}>
                   {(question.choices?.length ? question.choices : fallbackChoices).map((choice) => (
-                    <Box key={choice} sx={{ display: 'flex', alignItems: 'center' }}><Radio value={choice} disabled={answersClosed || session.has_submitted} /><Typography fontWeight={answersClosed && choice === question.correct_choice ? 800 : 400} color={answersClosed && choice === question.correct_choice ? 'success.main' : 'text.primary'}>{choice}{answersClosed && choice === question.correct_choice ? ' — Correct answer' : ''}</Typography></Box>
+                    <Box key={choice} sx={{ display: 'flex', alignItems: 'center' }}><Radio value={choice} disabled={answersClosed || session.has_submitted || masterCannotAnswer} /><Typography fontWeight={answersClosed && choice === question.correct_choice ? 800 : 400} color={answersClosed && choice === question.correct_choice ? 'success.main' : 'text.primary'}>{choice}{answersClosed && choice === question.correct_choice ? ' — Correct answer' : ''}</Typography></Box>
                   ))}
                 </RadioGroup>
                 {answersClosed ? (
@@ -78,8 +84,8 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
               </Paper>
             ))}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <Button variant="contained" onClick={onSubmit} disabled={session.status !== 'live' || answersClosed || session.has_submitted || isSubmitting}>
-                {isSubmitting ? 'Submitting…' : session.has_submitted ? 'Answer submitted' : 'Submit answer'}
+              <Button variant="contained" onClick={onSubmit} disabled={session.status !== 'live' || answersClosed || session.has_submitted || masterCannotAnswer || isSubmitting}>
+                {isSubmitting ? 'Submitting…' : session.has_submitted ? 'Answer submitted' : masterCannotAnswer ? 'Master cannot answer manual trivia' : 'Submit answer'}
               </Button>
               {canManage && session.status === 'draft' ? <Button variant="outlined" onClick={onPublish}>Publish session</Button> : null}
               {canManage && session.status === 'live' ? <Button variant="outlined" onClick={onEvaluate}>Close and evaluate</Button> : null}
