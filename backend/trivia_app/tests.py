@@ -344,6 +344,27 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertIsNone(response.data['questions'][0]['selected_choice'])
         self.assertFalse(response.data['questions'][0]['is_correct'])
 
+    def test_team_can_have_only_one_team_admin(self):
+        team = Team.objects.create(name='Single Admin Team', slug='single-admin-team', created_by=self.admin)
+        TeamMembership.objects.create(
+            team=team,
+            user=self.admin,
+            role=TeamMembership.Role.TEAM_ADMIN,
+            status=TeamMembership.Status.APPROVED,
+        )
+        candidate = User.objects.create_user(username='second-admin', email='second-admin@example.com')
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            f'/api/teams/{team.id}/members/',
+            {'user_id': candidate.id, 'role': TeamMembership.Role.TEAM_ADMIN},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data['role'], ['A team can have only one team admin.'])
+        self.assertFalse(TeamMembership.objects.filter(team=team, user=candidate).exists())
+
     def test_team_approval_manual_trivia_and_team_leaderboard(self):
         self.authenticate(self.admin)
         response = self.client.post(
