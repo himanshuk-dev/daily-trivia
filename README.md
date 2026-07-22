@@ -22,6 +22,8 @@ https://github.com/user-attachments/assets/3c261f08-237d-4705-bb53-1ed5acf55d2c
 - Draft review, editing, publishing, closing, and answer evaluation
 - Trophy awards for users who answer correctly
 - Team leaderboards, trivia history, notifications, and basic analytics
+- Leaderboard ranking by correct results, with earlier correct submissions breaking ties
+- Automatic removal of question and answer details after 17 days while cycle winners remain available
 - Automatic dashboard refresh for notifications, new trivia, submissions, teams, and leaderboards
 - Platform-wide publish notifications for every active platform administrator
 - Automatic publication with a configurable, server-enforced answer window
@@ -214,6 +216,7 @@ The complete template is in [.env.example](.env.example). Important settings inc
 | `GROQ_API_KEY` | Optional Groq key for AI trivia generation |
 | `GROQ_MODEL` | Groq model used to generate trivia questions |
 | `TRIVIA_ANSWER_WINDOW_HOURS` | Answer-window duration; accepts decimals such as `0.25` for 15 minutes |
+| `TRIVIA_QUESTION_RETENTION_DAYS` | Days to retain closed trivia questions and submitted-answer details; defaults to `17` |
 | `VITE_API_BASE_URL` | Backend API URL used by the frontend |
 
 ## Main workflow
@@ -226,11 +229,14 @@ The complete template is in [.env.example](.env.example). Important settings inc
 5. A team administrator assigns themselves or another approved member as master for a custom-length cycle without preselecting daily topics.
 6. Each day, the master chooses a suggested topic from a dropdown and asks AI to generate one question; it is published immediately.
 7. Approved team members submit their answers during the configured answer window.
+   A master cannot answer a trivia session they created manually, but can answer AI-generated trivia.
 8. After the deadline, the master evaluates the session.
 9. Correct answers produce trophies.
 10. Correct participants receive trophies reflected in the cycle leaderboard.
 11. After the custom end date and any open answer window pass, the cycle closes and announces the winner—or tied winners—to the master, approved team members, and platform administrators.
 12. Team members can reopen completed trivia to review the correct answer, explanation, and their own submission.
+
+Question and submitted-answer details are deleted 17 days after a trivia session closes. The master-cycle record, session summary, trophies, cycle leaderboard, and winner remain. Regular users and team administrators see the latest three master cycles for each team they belong to; platform administrators retain access to every master-cycle summary and cycle leaderboard.
 
 ## Future expansion
 

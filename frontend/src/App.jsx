@@ -250,6 +250,10 @@ export default function App() {
     const cycle = cycles.find((item) => item.id === activeSession?.master_cycle)
     return Boolean(cycle && (createdUser?.is_staff || cycle.master_name === createdUser?.username))
   }, [activeSession, createdUser, cycles])
+  const isActiveCycleMaster = useMemo(() => {
+    const cycle = cycles.find((item) => item.id === activeSession?.master_cycle)
+    return Boolean(cycle && cycle.master_name === createdUser?.username)
+  }, [activeSession, createdUser, cycles])
 
   const handleRequestCode = async () => {
     try {
@@ -500,9 +504,14 @@ export default function App() {
       setActiveSession(session)
       setBuilder((current) => ({
         ...current,
-        sessionId: String(session.id),
-        title: session.title,
-        questions: session.questions,
+        sessionId: '',
+        title: '',
+        prompt: '',
+        choices: ['', '', '', ''],
+        correct_choice: '',
+        explanation: '',
+        aiTopic: '',
+        questions: [],
       }))
       const closesAt = session.close_at ? new Date(session.close_at).toLocaleString() : 'the configured deadline'
       setMessage(`AI generated and published ${session.title}. Answers close ${closesAt}.`)
@@ -515,7 +524,16 @@ export default function App() {
 
   const handleLoadDraft = async (sessionId) => {
     if (!sessionId) {
-      setBuilder((current) => ({ ...current, sessionId: '', title: '', questions: [] }))
+      setBuilder((current) => ({
+        ...current,
+        sessionId: '',
+        title: '',
+        prompt: '',
+        choices: ['', '', '', ''],
+        correct_choice: '',
+        explanation: '',
+        questions: [],
+      }))
       return
     }
     try {
@@ -756,6 +774,7 @@ export default function App() {
               choices={selectedChoices}
               setChoices={setSelectedChoices}
               canManage={canManageActiveSession}
+              isCycleMaster={isActiveCycleMaster}
               isSubmitting={isSubmittingAnswers}
               onSubmit={handleSubmitAnswer}
               onPublish={handlePublishSession}

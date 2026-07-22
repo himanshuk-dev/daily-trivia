@@ -12,6 +12,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
   const selectedCycle = cycles.find((cycle) => String(cycle.id) === String(builder.cycleId))
   const today = formatDate(new Date())
   const scheduledTopic = selectedCycle?.daily_topics?.find((item) => item.date === today)?.topic
+  const selectedCycleDrafts = selectedCycle?.trivia_sessions?.filter((session) => session.status === 'draft') ?? []
   return (
     <Grid item xs={12}>
       <Card sx={{ borderRadius: 4 }}><CardContent>
@@ -25,9 +26,19 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
               </TextField>
             </Grid>
             <Grid item xs={12} md={4}>
-              <TextField select fullWidth label="Edit existing draft" value={builder.sessionId} onChange={(event) => onLoadDraft(event.target.value)}>
+              <TextField
+                select
+                fullWidth
+                label="Draft selection"
+                value={builder.sessionId}
+                onChange={(event) => onLoadDraft(event.target.value)}
+                SelectProps={{
+                  displayEmpty: true,
+                  renderValue: (value) => selectedCycleDrafts.find((session) => String(session.id) === String(value))?.title ?? 'New draft',
+                }}
+              >
                 <MenuItem value="">New draft</MenuItem>
-                {cycles.flatMap((cycle) => cycle.trivia_sessions).filter((session) => session.status === 'draft').map((session) => (
+                {selectedCycleDrafts.map((session) => (
                   <MenuItem key={session.id} value={String(session.id)}>{session.title}</MenuItem>
                 ))}
               </TextField>

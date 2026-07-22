@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, F, Min
 from django.utils import timezone
 
 from ..models import MasterCycle, Notification, TeamMembership, TrophyAward, TriviaSession
@@ -36,7 +36,10 @@ def finalize_expired_cycles() -> int:
                         TrophyAward.objects.get_or_create(
                             trivia_session=session,
                             user=answer.user,
-                            defaults={'reason': 'Correct trivia answer'},
+                            defaults={
+                                'reason': 'Correct trivia answer',
+                                'answered_at': answer.submitted_at,
+                            },
                         )
                 session.status = TriviaSession.Status.CLOSED
                 session.close_at = session.close_at or now
@@ -48,7 +51,8 @@ def finalize_expired_cycles() -> int:
                 'user_id', 'user__username',
             ).annotate(
                 trophy_count=Count('id'),
-            ).order_by('-trophy_count', 'user__username'))
+                first_correct_at=Min('answered_at'),
+            ).order_by('-trophy_count', F('first_correct_at').asc(nulls_last=True), 'user__username'))
 
             cycle.status = MasterCycle.Status.CLOSED
             cycle.save(update_fields=['status'])
@@ -59,15 +63,9 @@ def finalize_expired_cycles() -> int:
 
             if leaderboard:
                 winning_score = leaderboard[0]['trophy_count']
-                winners = [row['user__username'] for row in leaderboard if row['trophy_count'] == winning_score]
-                if len(winners) == 1:
-                    trophy_label = 'trophy' if winning_score == 1 else 'trophies'
-                    message = f'Cycle "{cycle.topic}" winner: {winners[0]} with {winning_score} {trophy_label}!'
-                else:
-                    message = (
-                        f'Cycle "{cycle.topic}" winners: {", ".join(winners)} '
-                        f'with {winning_score} trophies each!'
-                    )
+                winner = leaderboard[0]['user__username']
+                trophy_label = 'trophy' if winning_score == 1 else 'trophies'
+                message = f'Cycle "{cycle.topic}" winner: {winner} with {winning_score} {trophy_label}!'
             else:
                 message = f'Cycle "{cycle.topic}" has ended. No trophies were awarded.'
 

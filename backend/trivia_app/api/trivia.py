@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Count, F, Max, Min, Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -20,6 +20,7 @@ from ..serializers import (
 )
 from ..services.ai_generator import TriviaGenerator
 from ..services.cycle_finalizer import finalize_expired_cycles
+from ..services.trivia_retention import delete_expired_trivia_questions
 from .common import can_manage_cycle, get_object_or_404, is_approved_member, is_team_admin
 
 
@@ -41,13 +42,19 @@ def notify_trivia_published(team: Team, session: TriviaSession, publisher: User)
 def master_cycle_list_create(request):
     if request.method == 'GET':
         finalize_expired_cycles()
+        delete_expired_trivia_questions()
         cycles = MasterCycle.objects.select_related('master').prefetch_related('trivia_sessions__questions').order_by('-start_date')
         if not request.user.is_staff:
             team_ids = TeamMembership.objects.filter(
                 user=request.user,
                 status=TeamMembership.Status.APPROVED,
             ).values_list('team_id', flat=True)
-            cycles = cycles.filter(team_id__in=team_ids)
+            visible_cycle_ids = []
+            for team_id in team_ids:
+                visible_cycle_ids.extend(
+                    cycles.filter(team_id=team_id).values_list('id', flat=True)[:3]
+                )
+            cycles = cycles.filter(id__in=visible_cycle_ids)
         return Response(MasterCycleSerializer(cycles, many=True).data)
 
     serializer = MasterCycleSerializer(data=request.data)
@@ -90,6 +97,7 @@ def master_cycle_generate_trivia(request, pk: int):
             title=title,
             topic=trivia_topic,
             status=TriviaSession.Status.LIVE,
+            generation_method=TriviaSession.GenerationMethod.AI,
             publish_at=publish_at,
             close_at=publish_at + timedelta(hours=settings.TRIVIA_ANSWER_WINDOW_HOURS),
         )
@@ -231,6 +239,14 @@ def trivia_session_answers(request, pk: int):
         return Response({'detail': 'The answer window has closed.'}, status=status.HTTP_409_CONFLICT)
     if session.master_cycle.team and not is_approved_member(request.user, session.master_cycle.team):
         return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
+    if (
+        session.generation_method == TriviaSession.GenerationMethod.MANUAL
+        and session.master_cycle.master_id == request.user.id
+    ):
+        return Response(
+            {'detail': 'The Trivia Master cannot answer trivia they created manually.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     serializer = UserAnswerSerializer(data={
         'trivia_session': session.id,
         'trivia_question': request.data.get('trivia_question'),
@@ -271,7 +287,10 @@ def trivia_session_evaluate(request, pk: int):
                 TrophyAward.objects.get_or_create(
                     trivia_session=session,
                     user=answer.user,
-                    defaults={'reason': 'Correct trivia answer'},
+                    defaults={
+                        'reason': 'Correct trivia answer',
+                        'answered_at': answer.submitted_at,
+                    },
                 )
     trophy_count = TrophyAward.objects.filter(trivia_session=session).count()
     session.status = TriviaSession.Status.CLOSED
@@ -296,10 +315,14 @@ def leaderboard_view(request):
             trophy_count=Count(
                 'trophy_awards',
                 filter=Q(trophy_awards__trivia_session__master_cycle__team_id=team_id) if team_id else Q(),
-            )
+            ),
+            first_correct_at=Min(
+                'trophy_awards__answered_at',
+                filter=Q(trophy_awards__trivia_session__master_cycle__team_id=team_id) if team_id else Q(),
+            ),
         )
         .filter(trophy_count__gt=0)
-        .order_by('-trophy_count', 'username')
+        .order_by('-trophy_count', F('first_correct_at').asc(nulls_last=True), 'username')
     )
     return Response([
         {'user_id': user.id, 'username': user.username, 'trophy_count': user.trophy_count}

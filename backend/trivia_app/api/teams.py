@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Count, F, Max, Min, Q
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from django.utils.text import slugify
@@ -114,13 +114,23 @@ def team_members(request, pk: int):
             return Response({'role': ['Select member or team admin.']}, status=status.HTTP_400_BAD_REQUEST)
         if TeamMembership.objects.filter(team=team, user=user).exists():
             return Response({'user_id': ['This user already belongs to the team.']}, status=status.HTTP_409_CONFLICT)
-        membership = TeamMembership.objects.create(
-            team=team,
-            user=user,
-            role=role,
-            status=TeamMembership.Status.APPROVED,
-            approved_at=timezone.now(),
-        )
+        with transaction.atomic():
+            Team.objects.select_for_update().get(pk=team.pk)
+            if role == TeamMembership.Role.TEAM_ADMIN and TeamMembership.objects.filter(
+                team=team,
+                role=TeamMembership.Role.TEAM_ADMIN,
+            ).exists():
+                return Response(
+                    {'role': ['A team can have only one team admin.']},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            membership = TeamMembership.objects.create(
+                team=team,
+                user=user,
+                role=role,
+                status=TeamMembership.Status.APPROVED,
+                approved_at=timezone.now(),
+            )
         return Response(TeamMembershipSerializer(membership).data, status=status.HTTP_201_CREATED)
     memberships = team.memberships.select_related('user').order_by('status', 'user__username')
     return Response(TeamMembershipSerializer(memberships, many=True).data)
@@ -146,6 +156,18 @@ def team_membership_manage(request, team_pk: int, membership_pk: int):
         membership.status = update['status']
         membership.approved_at = timezone.now() if membership.status == TeamMembership.Status.APPROVED else None
     if 'role' in update:
+        if (
+            update['role'] == TeamMembership.Role.TEAM_ADMIN
+            and membership.role != TeamMembership.Role.TEAM_ADMIN
+            and TeamMembership.objects.filter(
+                team=team,
+                role=TeamMembership.Role.TEAM_ADMIN,
+            ).exclude(pk=membership.pk).exists()
+        ):
+            return Response(
+                {'role': ['A team can have only one team admin.']},
+                status=status.HTTP_409_CONFLICT,
+            )
         membership.role = update['role']
     membership.save(update_fields=['status', 'approved_at', 'role'])
     return Response(TeamMembershipSerializer(membership).data)
@@ -237,7 +259,11 @@ def platform_overview(request):
                 'trophy_awards',
                 filter=Q(trophy_awards__trivia_session__master_cycle__team=team),
             ),
-        ).order_by('-trophy_count', 'username')
+            first_correct_at=Min(
+                'trophy_awards__answered_at',
+                filter=Q(trophy_awards__trivia_session__master_cycle__team=team),
+            ),
+        ).order_by('-trophy_count', F('first_correct_at').asc(nulls_last=True), 'username')
         members = team.memberships.select_related('user').order_by('status', 'user__username')
         team_data.append({
             'id': team.id,

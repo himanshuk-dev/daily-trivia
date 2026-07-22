@@ -20,6 +20,7 @@ export function TeamAdministration({
   onDeleteTeam,
 }) {
   if (!selectedTeam) return null
+  const hasTeamAdmin = members.some((membership) => membership.role === 'team_admin')
 
   return (
     <Grid item xs={12}>
@@ -111,8 +112,8 @@ export function TeamAdministration({
                 <MenuItem key={user.id} value={String(user.id)}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username} · {user.email}</MenuItem>
               ))}
             </TextField>
-            <TextField select label="Team role" value={newMembership.role} onChange={(event) => setNewMembership((current) => ({ ...current, role: event.target.value }))} sx={{ minWidth: { md: 220 } }}>
-              <MenuItem value="member">Member</MenuItem><MenuItem value="team_admin">Team admin</MenuItem>
+              <TextField select label="Team role" value={newMembership.role} onChange={(event) => setNewMembership((current) => ({ ...current, role: event.target.value }))} sx={{ minWidth: { md: 220 } }}>
+                <MenuItem value="member">Member</MenuItem><MenuItem value="team_admin" disabled={hasTeamAdmin}>Team admin{hasTeamAdmin ? ' (already assigned)' : ''}</MenuItem>
             </TextField>
             <Button variant="contained" onClick={onAddMember} disabled={!newMembership.user_id} sx={{ minWidth: 150 }}>Add to team</Button>
           </Stack>
