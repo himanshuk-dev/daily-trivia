@@ -68,10 +68,19 @@ class TriviaSession(models.Model):
         LIVE = 'live', 'Live'
         CLOSED = 'closed', 'Closed'
 
+    class GenerationMethod(models.TextChoices):
+        MANUAL = 'manual', 'Manual'
+        AI = 'ai', 'AI'
+
     master_cycle = models.ForeignKey(MasterCycle, on_delete=models.CASCADE, related_name='trivia_sessions')
     title = models.CharField(max_length=200)
     topic = models.CharField(max_length=200)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    generation_method = models.CharField(
+        max_length=20,
+        choices=GenerationMethod.choices,
+        default=GenerationMethod.MANUAL,
+    )
     publish_at = models.DateTimeField(null=True, blank=True)
     close_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -111,6 +120,7 @@ class TrophyAward(models.Model):
     trivia_session = models.ForeignKey(TriviaSession, on_delete=models.CASCADE, related_name='trophy_awards')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='trophy_awards')
     reason = models.CharField(max_length=255, default='Correct trivia answer')
+    answered_at = models.DateTimeField(null=True, blank=True)
     awarded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

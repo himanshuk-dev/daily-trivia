@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.contrib.auth.validators import UnicodeUsernameValidator
-from django.db.models import Count
+from django.db.models import Count, F, Min
 from rest_framework import serializers
 
 from .models import MasterCycle, Notification, Team, TeamMembership, TrophyAward, TriviaQuestion, TriviaSession, UserAnswer
@@ -54,13 +54,13 @@ class TriviaSessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TriviaSession
-        fields = ['id', 'master_cycle', 'title', 'topic', 'status', 'publish_at', 'close_at', 'questions']
+        fields = ['id', 'master_cycle', 'title', 'topic', 'status', 'generation_method', 'publish_at', 'close_at', 'questions']
 
 
 class TriviaSessionSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = TriviaSession
-        fields = ['id', 'master_cycle', 'title', 'topic', 'status', 'publish_at', 'close_at']
+        fields = ['id', 'master_cycle', 'title', 'topic', 'status', 'generation_method', 'publish_at', 'close_at']
 
 
 class MasterCycleSerializer(serializers.ModelSerializer):
@@ -103,7 +103,10 @@ class MasterCycleSerializer(serializers.ModelSerializer):
     def get_sprint_leaderboard(self, obj):
         rows = TrophyAward.objects.filter(trivia_session__master_cycle=obj).values(
             'user_id', 'user__username',
-        ).annotate(trophy_count=Count('id')).order_by('-trophy_count', 'user__username')
+        ).annotate(
+            trophy_count=Count('id'),
+            first_correct_at=Min('answered_at'),
+        ).order_by('-trophy_count', F('first_correct_at').asc(nulls_last=True), 'user__username')
         return [
             {'user_id': row['user_id'], 'username': row['user__username'], 'trophy_count': row['trophy_count']}
             for row in rows

@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Count, F, Max, Min, Q
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from django.utils.text import slugify
@@ -237,7 +237,11 @@ def platform_overview(request):
                 'trophy_awards',
                 filter=Q(trophy_awards__trivia_session__master_cycle__team=team),
             ),
-        ).order_by('-trophy_count', 'username')
+            first_correct_at=Min(
+                'trophy_awards__answered_at',
+                filter=Q(trophy_awards__trivia_session__master_cycle__team=team),
+            ),
+        ).order_by('-trophy_count', F('first_correct_at').asc(nulls_last=True), 'username')
         members = team.memberships.select_related('user').order_by('status', 'user__username')
         team_data.append({
             'id': team.id,

@@ -13,7 +13,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from trivia_app.models import EmailLoginCode, MasterCycle, Notification, Team, TeamMembership, TriviaSession
+from trivia_app.models import EmailLoginCode, MasterCycle, Notification, Team, TeamMembership, TrophyAward, TriviaQuestion, TriviaSession, UserAnswer
 from trivia_app.services.ai_generator import GROQ_BASE_URL, GeneratedQuestion, TriviaGenerator
 from trivia_app.services.email_sender import send_login_code_email
 
@@ -306,11 +306,17 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.data['topic'], 'Science')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['status'], TriviaSession.Status.LIVE)
+        self.assertEqual(response.data['generation_method'], TriviaSession.GenerationMethod.AI)
         self.assertEqual(len(response.data['questions']), 1)
         self.assertIsNotNone(response.data['publish_at'])
         self.assertIsNotNone(response.data['close_at'])
 
         session = TriviaSession.objects.get(pk=response.data['id'])
+        question_id = session.questions.get().id
+        self.assertEqual(self.client.post(f'/api/trivia-sessions/{session.id}/answers/', {
+            'trivia_question': question_id,
+            'selected_choice': 'Ottawa',
+        }, format='json').status_code, status.HTTP_201_CREATED)
         self.assertTrue(Notification.objects.filter(
             user=self.admin,
             team_id=team_id,
@@ -329,7 +335,6 @@ class TeamTriviaWorkflowTests(APITestCase):
         session.close_at = timezone.now() - timedelta(seconds=1)
         session.save(update_fields=['close_at'])
         self.authenticate(direct_member)
-        question_id = session.questions.get().id
         self.assertEqual(self.client.post(f'/api/trivia-sessions/{session.id}/answers/', {
             'trivia_question': question_id,
             'selected_choice': 'Ottawa',
@@ -414,15 +419,15 @@ class TeamTriviaWorkflowTests(APITestCase):
             'trivia_question': question_id,
             'selected_choice': 'Venus',
         }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data['detail'], 'The Trivia Master cannot answer trivia they created manually.')
         response = self.client.get(f'/api/trivia-sessions/{session_id}/')
-        self.assertTrue(response.data['has_submitted'])
-        self.assertEqual(response.data['questions'][0]['selected_choice'], 'Venus')
+        self.assertFalse(response.data['has_submitted'])
         response = self.client.post(f'/api/trivia-sessions/{session_id}/evaluate/')
         self.assertEqual(response.data['trophies_awarded'], 1)
 
         response = self.client.get(f'/api/trivia-sessions/{session_id}/')
-        self.assertEqual(response.data['submission_count'], 2)
+        self.assertEqual(response.data['submission_count'], 1)
         player_submission = next(
             submission for submission in response.data['submissions']
             if submission['username'] == self.player.username
@@ -480,3 +485,106 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['username'], self.player.username)
         self.assertEqual(response.data[0]['trophy_count'], 1)
+
+    def test_leaderboard_uses_earliest_correct_answer_as_tiebreaker(self):
+        faster_player = User.objects.create_user(username='faster-player', email='fast@example.com')
+        team = Team.objects.create(name='Ranking Team', slug='ranking-team', created_by=self.admin)
+        for user in (self.player, faster_player):
+            TeamMembership.objects.create(
+                team=team,
+                user=user,
+                status=TeamMembership.Status.APPROVED,
+            )
+        cycle = MasterCycle.objects.create(
+            team=team,
+            master=self.master,
+            topic='Ranking',
+            start_date=timezone.localdate(),
+            end_date=timezone.localdate(),
+            status=MasterCycle.Status.CLOSED,
+        )
+        session = TriviaSession.objects.create(
+            master_cycle=cycle,
+            title='Ranking question',
+            topic='Ranking',
+            status=TriviaSession.Status.CLOSED,
+            close_at=timezone.now(),
+        )
+        now = timezone.now()
+        TrophyAward.objects.create(trivia_session=session, user=self.player, answered_at=now)
+        TrophyAward.objects.create(
+            trivia_session=session,
+            user=faster_player,
+            answered_at=now - timedelta(seconds=10),
+        )
+
+        self.authenticate(self.player)
+        response = self.client.get(f'/api/leaderboard/?team={team.id}')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [entry['username'] for entry in response.data],
+            [faster_player.username, self.player.username],
+        )
+
+    @override_settings(TRIVIA_QUESTION_RETENTION_DAYS=17)
+    def test_question_cleanup_preserves_cycle_ranking_and_limits_user_history(self):
+        team = Team.objects.create(name='History Team', slug='history-team', created_by=self.admin)
+        TeamMembership.objects.create(
+            team=team,
+            user=self.player,
+            status=TeamMembership.Status.APPROVED,
+        )
+        cycles = []
+        for days_ago in range(4):
+            day = timezone.localdate() - timedelta(days=days_ago)
+            cycles.append(MasterCycle.objects.create(
+                team=team,
+                master=self.master,
+                topic=f'Cycle {days_ago}',
+                start_date=day,
+                end_date=day,
+                status=MasterCycle.Status.CLOSED,
+            ))
+        old_session = TriviaSession.objects.create(
+            master_cycle=cycles[-1],
+            title='Expired question details',
+            topic='History',
+            status=TriviaSession.Status.CLOSED,
+            close_at=timezone.now() - timedelta(days=18),
+        )
+        question = TriviaQuestion.objects.create(
+            trivia_session=old_session,
+            prompt='Old question',
+            choices=['A', 'B'],
+            correct_choice='A',
+        )
+        answer = UserAnswer.objects.create(
+            trivia_session=old_session,
+            trivia_question=question,
+            user=self.player,
+            selected_choice='A',
+            is_correct=True,
+        )
+        trophy = TrophyAward.objects.create(
+            trivia_session=old_session,
+            user=self.player,
+            answered_at=answer.submitted_at,
+        )
+
+        self.authenticate(self.player)
+        response = self.client.get('/api/master-cycles/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+        self.assertFalse(TriviaQuestion.objects.filter(pk=question.pk).exists())
+        self.assertFalse(UserAnswer.objects.filter(pk=answer.pk).exists())
+        self.assertTrue(TriviaSession.objects.filter(pk=old_session.pk).exists())
+        self.assertTrue(MasterCycle.objects.filter(pk=cycles[-1].pk).exists())
+        self.assertTrue(TrophyAward.objects.filter(pk=trophy.pk).exists())
+
+        self.authenticate(self.admin)
+        response = self.client.get('/api/master-cycles/')
+        self.assertEqual(len(response.data), 4)
+        old_cycle = next(item for item in response.data if item['id'] == cycles[-1].id)
+        self.assertEqual(old_cycle['sprint_leaderboard'][0]['username'], self.player.username)

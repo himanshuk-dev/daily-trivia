@@ -142,6 +142,9 @@ ALLOWED_EMAIL_DOMAINS = {
 TRIVIA_ANSWER_WINDOW_HOURS = float(os.getenv('TRIVIA_ANSWER_WINDOW_HOURS', '24'))
 if TRIVIA_ANSWER_WINDOW_HOURS <= 0:
     raise ValueError('TRIVIA_ANSWER_WINDOW_HOURS must be greater than zero.')
+TRIVIA_QUESTION_RETENTION_DAYS = int(os.getenv('TRIVIA_QUESTION_RETENTION_DAYS', '17'))
+if TRIVIA_QUESTION_RETENTION_DAYS <= 0:
+    raise ValueError('TRIVIA_QUESTION_RETENTION_DAYS must be greater than zero.')
 PLATFORM_ADMIN_EMAILS = {
     email.lower() for email in env_list('PLATFORM_ADMIN_EMAILS', 'himanshu.kumar@ssc-spc.gc.ca')
 }
