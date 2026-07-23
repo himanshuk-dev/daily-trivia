@@ -404,6 +404,21 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(current_membership.role, TeamMembership.Role.MEMBER)
         self.assertEqual(replacement_membership.role, TeamMembership.Role.TEAM_ADMIN)
 
+    def test_platform_admin_can_remove_their_own_team_membership(self):
+        team = Team.objects.create(name='Self Removal Team', slug='self-removal-team', created_by=self.admin)
+        membership = TeamMembership.objects.create(
+            team=team,
+            user=self.admin,
+            role=TeamMembership.Role.TEAM_ADMIN,
+            status=TeamMembership.Status.APPROVED,
+        )
+        self.authenticate(self.admin)
+
+        response = self.client.delete(f'/api/teams/{team.id}/members/{membership.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(TeamMembership.objects.filter(pk=membership.id).exists())
+
     def test_team_approval_manual_trivia_and_team_leaderboard(self):
         self.authenticate(self.admin)
         response = self.client.post(

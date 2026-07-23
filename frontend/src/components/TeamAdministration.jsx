@@ -131,7 +131,7 @@ export function TeamAdministration({
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               {membership.status === 'pending' ? <><Button size="small" onClick={() => onUpdateMember(membership, { status: 'approved' })}>Approve</Button><Button size="small" color="error" onClick={() => onUpdateMember(membership, { status: 'rejected' })}>Reject</Button></> : null}
               {membership.status === 'approved' && membership.user !== currentUser.id ? <Button size="small" onClick={() => onUpdateMember(membership, { role: membership.role === 'team_admin' ? 'member' : 'team_admin' })}>{membership.role === 'team_admin' ? 'Make member' : 'Make team admin'}</Button> : null}
-              {membership.user !== currentUser.id ? <Button size="small" color="error" onClick={() => onRemoveMember(membership)}>Remove</Button> : null}
+              {membership.user !== currentUser.id || currentUser.is_staff ? <Button size="small" color="error" onClick={() => onRemoveMember(membership)}>Remove</Button> : null}
             </Stack>
           </ListItem>
         ))}</List>

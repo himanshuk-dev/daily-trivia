@@ -145,7 +145,7 @@ def team_membership_manage(request, team_pk: int, membership_pk: int):
         return Response({'detail': 'Only a team admin can manage members.'}, status=status.HTTP_403_FORBIDDEN)
     membership = get_object_or_404(TeamMembership, pk=membership_pk, team=team)
     if request.method == 'DELETE':
-        if membership.user == request.user:
+        if membership.user == request.user and not request.user.is_staff:
             return Response({'detail': 'You cannot remove your own team-admin membership.'}, status=status.HTTP_400_BAD_REQUEST)
         membership.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
