@@ -113,7 +113,7 @@ export function TeamAdministration({
               ))}
             </TextField>
               <TextField select label="Team role" value={newMembership.role} onChange={(event) => setNewMembership((current) => ({ ...current, role: event.target.value }))} sx={{ minWidth: { md: 220 } }}>
-                <MenuItem value="member">Member</MenuItem><MenuItem value="team_admin" disabled={hasTeamAdmin}>Team admin{hasTeamAdmin ? ' (already assigned)' : ''}</MenuItem>
+                <MenuItem value="member">Member</MenuItem><MenuItem value="team_admin" disabled={hasTeamAdmin && !currentUser.is_staff}>Team admin{hasTeamAdmin && !currentUser.is_staff ? ' (already assigned)' : hasTeamAdmin ? ' (replace current admin)' : ''}</MenuItem>
             </TextField>
             <Button variant="contained" onClick={onAddMember} disabled={!newMembership.user_id} sx={{ minWidth: 150 }}>Add to team</Button>
           </Stack>
