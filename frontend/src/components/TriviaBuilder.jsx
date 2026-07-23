@@ -7,7 +7,7 @@ const suggestedTopics = [
   'Nature and Wildlife', 'Science', 'Space', 'Sports', 'Technology', 'World History',
 ]
 
-export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQuestion, onSave, onGenerate, isGenerating }) {
+export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQuestion, onSave, onPublishManual, onGenerate, isGenerating }) {
   if (!cycles.length) return null
   const selectedCycle = cycles.find((cycle) => String(cycle.id) === String(builder.cycleId))
   const today = formatDate(new Date())
@@ -16,8 +16,8 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
   return (
     <Grid item xs={12}>
       <Card sx={{ borderRadius: 4 }}><CardContent>
-        <Typography variant="h6" gutterBottom>Daily AI trivia</Typography>
-        <Typography color="text.secondary">Select the cycle for your topic, then let AI create and publish one question for the configured answer window.</Typography>
+        <Typography variant="h6" gutterBottom>Daily trivia</Typography>
+        <Typography color="text.secondary">Create a manual question or let AI generate one for the configured answer window.</Typography>
         <Stack spacing={2}>
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
@@ -75,6 +75,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
           ))}</List>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Button variant="contained" onClick={onSave} disabled={!builder.cycleId || builder.questions.length === 0}>{builder.sessionId ? 'Save draft changes' : 'Create manual draft'}</Button>
+            <Button variant="contained" color="success" onClick={onPublishManual} disabled={!builder.cycleId || builder.questions.length === 0}>Create &amp; publish manual trivia</Button>
             <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || !builder.aiTopic || Boolean(builder.sessionId) || isGenerating}>
               {isGenerating ? 'Generating trivia…' : 'Generate & publish AI question'}
             </Button>

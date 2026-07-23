@@ -496,6 +496,33 @@ export default function App() {
     }
   }
 
+  const handlePublishManualTrivia = async () => {
+    try {
+      const payload = { title: builder.title, questions: builder.questions }
+      const draft = builder.sessionId
+        ? await api.updateTrivia(builder.sessionId, payload)
+        : await api.createTrivia(builder.cycleId, payload)
+      const session = await api.publishTriviaSession(draft.id)
+      setCycles(await api.getMasterCycles())
+      setActiveSession(session)
+      setBuilder((current) => ({
+        ...current,
+        sessionId: '',
+        title: '',
+        prompt: '',
+        choices: ['', '', '', ''],
+        correct_choice: '',
+        explanation: '',
+        aiTopic: '',
+        questions: [],
+      }))
+      const closesAt = session.close_at ? new Date(session.close_at).toLocaleString() : 'the configured deadline'
+      setMessage(`Manual trivia published: ${session.title}. Answers close ${closesAt}.`)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
   const handleGenerateTrivia = async () => {
     setIsGeneratingTrivia(true)
     try {
@@ -764,6 +791,7 @@ export default function App() {
               onLoadDraft={handleLoadDraft}
               onAddQuestion={handleAddQuestion}
               onSave={handleCreateTrivia}
+              onPublishManual={handlePublishManualTrivia}
               onGenerate={handleGenerateTrivia}
               isGenerating={isGeneratingTrivia}
             />
