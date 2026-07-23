@@ -30,7 +30,7 @@ def team_list_create(request):
 
     payload = request.data.copy()
     initial_admin_id = payload.pop('initial_admin_id', None)
-    initial_admin = request.user
+    initial_admin = None
     if initial_admin_id:
         initial_admin = User.objects.filter(pk=initial_admin_id, is_active=True).first()
         if not initial_admin:
@@ -40,13 +40,14 @@ def team_list_create(request):
     serializer.is_valid(raise_exception=True)
     with transaction.atomic():
         team = serializer.save(created_by=request.user)
-        TeamMembership.objects.create(
-            team=team,
-            user=initial_admin,
-            role=TeamMembership.Role.TEAM_ADMIN,
-            status=TeamMembership.Status.APPROVED,
-            approved_at=timezone.now(),
-        )
+        if initial_admin:
+            TeamMembership.objects.create(
+                team=team,
+                user=initial_admin,
+                role=TeamMembership.Role.TEAM_ADMIN,
+                status=TeamMembership.Status.APPROVED,
+                approved_at=timezone.now(),
+            )
     return Response(TeamSerializer(team, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -164,10 +165,15 @@ def team_membership_manage(request, team_pk: int, membership_pk: int):
                 role=TeamMembership.Role.TEAM_ADMIN,
             ).exclude(pk=membership.pk).exists()
         ):
-            return Response(
-                {'role': ['A team can have only one team admin.']},
-                status=status.HTTP_409_CONFLICT,
-            )
+            if not request.user.is_staff:
+                return Response(
+                    {'role': ['A team can have only one team admin.']},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            TeamMembership.objects.filter(
+                team=team,
+                role=TeamMembership.Role.TEAM_ADMIN,
+            ).exclude(pk=membership.pk).update(role=TeamMembership.Role.MEMBER)
         membership.role = update['role']
     membership.save(update_fields=['status', 'approved_at', 'role'])
     return Response(TeamMembershipSerializer(membership).data)

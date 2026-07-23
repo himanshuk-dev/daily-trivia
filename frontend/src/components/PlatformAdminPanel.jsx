@@ -7,7 +7,7 @@ export function PlatformAdminPanel({ currentUser, users, team, setTeam, onCreate
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
         <TextField label="New team name" value={team.name} onChange={(event) => setTeam((current) => ({ ...current, name: event.target.value }))} fullWidth />
         <TextField select label="Initial team admin" value={team.initial_admin_id} onChange={(event) => setTeam((current) => ({ ...current, initial_admin_id: event.target.value }))} fullWidth>
-          <MenuItem value="">Assign me</MenuItem>
+          <MenuItem value="">No initial admin (create blank team)</MenuItem>
           {users.map((user) => <MenuItem key={user.id} value={String(user.id)}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.username} ({user.username})</MenuItem>)}
         </TextField>
         <TextField select label="Membership approval" value={String(team.approval_required)} onChange={(event) => setTeam((current) => ({ ...current, approval_required: event.target.value === 'true' }))} fullWidth>
@@ -15,7 +15,7 @@ export function PlatformAdminPanel({ currentUser, users, team, setTeam, onCreate
         </TextField>
         <Button variant="contained" onClick={onCreateTeam} disabled={!team.name.trim()} sx={{ minWidth: 140 }}>Create team</Button>
       </Stack>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>The initial admin is approved automatically and can assign themselves or another approved member as trivia master.</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>You can create a blank team and assign its single team admin later, or assign an initial admin now.</Typography>
       <Typography variant="subtitle2">Platform administrators</Typography>
       <List dense>{users.map((user) => (
         <ListItem key={user.id} disableGutters secondaryAction={<Button onClick={() => onToggleAdmin(user)} disabled={user.id === currentUser.id}>{user.is_staff ? 'Remove admin' : 'Make admin'}</Button>}>

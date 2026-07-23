@@ -344,6 +344,19 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertIsNone(response.data['questions'][0]['selected_choice'])
         self.assertFalse(response.data['questions'][0]['is_correct'])
 
+    def test_platform_admin_can_create_blank_team_without_membership(self):
+        self.authenticate(self.admin)
+        response = self.client.post(
+            '/api/teams/',
+            {'name': 'Blank Team', 'approval_required': True},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        team = Team.objects.get(pk=response.data['id'])
+        self.assertFalse(TeamMembership.objects.filter(team=team).exists())
+        self.assertFalse(TeamMembership.objects.filter(team=team, user=self.admin).exists())
+
     def test_team_can_have_only_one_team_admin(self):
         team = Team.objects.create(name='Single Admin Team', slug='single-admin-team', created_by=self.admin)
         TeamMembership.objects.create(
@@ -364,6 +377,32 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(response.data['role'], ['A team can have only one team admin.'])
         self.assertFalse(TeamMembership.objects.filter(team=team, user=candidate).exists())
+
+    def test_platform_admin_can_switch_team_admin(self):
+        team = Team.objects.create(name='Transfer Team', slug='transfer-team', created_by=self.admin)
+        current_admin = User.objects.create_user(username='current-admin', email='current-admin@example.com')
+        replacement = User.objects.create_user(username='replacement-admin', email='replacement-admin@example.com')
+        current_membership = TeamMembership.objects.create(
+            team=team, user=current_admin, role=TeamMembership.Role.TEAM_ADMIN,
+            status=TeamMembership.Status.APPROVED,
+        )
+        replacement_membership = TeamMembership.objects.create(
+            team=team, user=replacement, role=TeamMembership.Role.MEMBER,
+            status=TeamMembership.Status.APPROVED,
+        )
+        self.authenticate(self.admin)
+
+        response = self.client.patch(
+            f'/api/teams/{team.id}/members/{replacement_membership.id}/',
+            {'role': TeamMembership.Role.TEAM_ADMIN},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        current_membership.refresh_from_db()
+        replacement_membership.refresh_from_db()
+        self.assertEqual(current_membership.role, TeamMembership.Role.MEMBER)
+        self.assertEqual(replacement_membership.role, TeamMembership.Role.TEAM_ADMIN)
 
     def test_team_approval_manual_trivia_and_team_leaderboard(self):
         self.authenticate(self.admin)
