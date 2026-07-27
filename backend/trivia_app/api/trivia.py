@@ -223,7 +223,8 @@ def trivia_session_publish(request, pk: int):
         return Response({'detail': 'Trivia can only be published during an active cycle.'}, status=status.HTTP_409_CONFLICT)
     session.status = TriviaSession.Status.LIVE
     session.publish_at = timezone.now()
-    session.save(update_fields=['status', 'publish_at'])
+    session.close_at = session.publish_at + timedelta(hours=settings.TRIVIA_ANSWER_WINDOW_HOURS)
+    session.save(update_fields=['status', 'publish_at', 'close_at'])
     if session.master_cycle.team:
         notify_trivia_published(session.master_cycle.team, session, request.user)
     return Response(TriviaSessionSerializer(session).data)
