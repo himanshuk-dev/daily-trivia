@@ -46,7 +46,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
             <Grid item xs={12} md={4}><TextField fullWidth label="Trivia title" value={builder.title} onChange={(event) => setBuilder((current) => ({ ...current, title: event.target.value }))} /></Grid>
           </Grid>
           {selectedCycle ? (
-            <TextField select fullWidth label="Today’s trivia topic" value={builder.aiTopic} onChange={(event) => setBuilder((current) => ({ ...current, aiTopic: event.target.value }))}>
+            <TextField select fullWidth label="AI trivia topic (required for AI generation)" value={builder.aiTopic} onChange={(event) => setBuilder((current) => ({ ...current, aiTopic: event.target.value }))}>
               {scheduledTopic ? <MenuItem value={scheduledTopic}>{scheduledTopic} · Previously scheduled</MenuItem> : null}
               {suggestedTopics.filter((topic) => topic !== scheduledTopic).map((topic) => <MenuItem key={topic} value={topic}>{topic}</MenuItem>)}
             </TextField>

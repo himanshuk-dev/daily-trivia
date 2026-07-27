@@ -422,7 +422,11 @@ class TeamTriviaWorkflowTests(APITestCase):
     def test_team_approval_manual_trivia_and_team_leaderboard(self):
         self.authenticate(self.admin)
         response = self.client.post(
-            '/api/teams/', {'name': 'Engineering', 'approval_required': True}, format='json',
+            '/api/teams/', {
+                'name': 'Engineering',
+                'approval_required': True,
+                'initial_admin_id': self.admin.id,
+            }, format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         team = response.data
@@ -467,7 +471,9 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         session_id = response.data['id']
         question_id = response.data['questions'][0]['id']
-        self.assertEqual(self.client.post(f'/api/trivia-sessions/{session_id}/publish/').status_code, status.HTTP_200_OK)
+        publish_response = self.client.post(f'/api/trivia-sessions/{session_id}/publish/')
+        self.assertEqual(publish_response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(publish_response.data['close_at'])
 
         self.authenticate(self.player)
         teams = self.client.get('/api/teams/').data
@@ -498,6 +504,11 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.data['detail'], 'The Trivia Master cannot answer trivia they created manually.')
         response = self.client.get(f'/api/trivia-sessions/{session_id}/')
         self.assertFalse(response.data['has_submitted'])
+        response = self.client.post(f'/api/trivia-sessions/{session_id}/evaluate/')
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        session = TriviaSession.objects.get(pk=session_id)
+        session.close_at = timezone.now() - timedelta(seconds=1)
+        session.save(update_fields=['close_at'])
         response = self.client.post(f'/api/trivia-sessions/{session_id}/evaluate/')
         self.assertEqual(response.data['trophies_awarded'], 1)
 
