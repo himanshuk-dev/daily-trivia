@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Count, F, Max, Min, Q
+from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -35,6 +36,20 @@ def notify_trivia_published(team: Team, session: TriviaSession, publisher: User)
         Notification(user_id=user_id, team=team, message=f'New trivia is live: {session.title}')
         for user_id in recipient_ids
     ])
+
+
+def requested_close_at(request):
+    raw_close_at = request.data.get('close_at')
+    if not raw_close_at:
+        return None, None
+    close_at = parse_datetime(str(raw_close_at))
+    if close_at is None:
+        return None, Response({'close_at': ['Use a valid ISO 8601 date and time.']}, status=status.HTTP_400_BAD_REQUEST)
+    if timezone.is_naive(close_at):
+        close_at = timezone.make_aware(close_at, timezone.get_current_timezone())
+    if close_at <= timezone.now():
+        return None, Response({'close_at': ['The trivia closing time must be in the future.']}, status=status.HTTP_400_BAD_REQUEST)
+    return close_at, None
 
 
 @api_view(['GET', 'POST'])
@@ -85,6 +100,9 @@ def master_cycle_generate_trivia(request, pk: int):
     selected_topic = str(request.data.get('topic', '')).strip()
     trivia_topic = selected_topic or scheduled_topic or cycle.topic
     title = request.data.get('title') or f'{trivia_topic} Daily Challenge'
+    close_at, close_at_error = requested_close_at(request)
+    if close_at_error:
+        return close_at_error
     try:
         question = TriviaGenerator().generate(trivia_topic)
     except Exception as exc:
@@ -99,7 +117,7 @@ def master_cycle_generate_trivia(request, pk: int):
             status=TriviaSession.Status.LIVE,
             generation_method=TriviaSession.GenerationMethod.AI,
             publish_at=publish_at,
-            close_at=publish_at + timedelta(hours=settings.TRIVIA_ANSWER_WINDOW_HOURS),
+            close_at=close_at or publish_at + timedelta(hours=settings.TRIVIA_ANSWER_WINDOW_HOURS),
         )
         TriviaQuestion.objects.create(
             trivia_session=session,
@@ -127,11 +145,15 @@ def master_cycle_create_trivia(request, pk: int):
     question_serializer.is_valid(raise_exception=True)
     if not questions_data:
         return Response({'questions': ['At least one question is required.']}, status=status.HTTP_400_BAD_REQUEST)
+    close_at, close_at_error = requested_close_at(request)
+    if close_at_error:
+        return close_at_error
     with transaction.atomic():
         session = TriviaSession.objects.create(
             master_cycle=cycle,
             title=request.data.get('title', '').strip() or f'{cycle.topic} Trivia',
             topic=cycle.topic,
+            close_at=close_at,
         )
         for order, question in enumerate(question_serializer.validated_data, start=1):
             TriviaQuestion.objects.create(trivia_session=session, sort_order=order, **question)
@@ -151,9 +173,13 @@ def trivia_session_update(request, pk: int):
     question_serializer.is_valid(raise_exception=True)
     if not questions_data:
         return Response({'questions': ['At least one question is required.']}, status=status.HTTP_400_BAD_REQUEST)
+    close_at, close_at_error = requested_close_at(request)
+    if close_at_error:
+        return close_at_error
     with transaction.atomic():
         session.title = request.data.get('title', session.title).strip() or session.title
-        session.save(update_fields=['title'])
+        session.close_at = close_at
+        session.save(update_fields=['title', 'close_at'])
         session.questions.all().delete()
         for order, question in enumerate(question_serializer.validated_data, start=1):
             TriviaQuestion.objects.create(trivia_session=session, sort_order=order, **question)
@@ -223,7 +249,8 @@ def trivia_session_publish(request, pk: int):
         return Response({'detail': 'Trivia can only be published during an active cycle.'}, status=status.HTTP_409_CONFLICT)
     session.status = TriviaSession.Status.LIVE
     session.publish_at = timezone.now()
-    session.close_at = session.publish_at + timedelta(hours=settings.TRIVIA_ANSWER_WINDOW_HOURS)
+    if not session.close_at or session.close_at <= session.publish_at:
+        session.close_at = session.publish_at + timedelta(hours=settings.TRIVIA_ANSWER_WINDOW_HOURS)
     session.save(update_fields=['status', 'publish_at', 'close_at'])
     if session.master_cycle.team:
         notify_trivia_published(session.master_cycle.team, session, request.user)

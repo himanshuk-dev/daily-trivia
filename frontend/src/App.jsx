@@ -65,6 +65,7 @@ export default function App() {
     correct_choice: '',
     explanation: '',
     aiTopic: '',
+    closeAt: '',
     questions: [],
   })
 
@@ -483,7 +484,7 @@ export default function App() {
 
   const handleCreateTrivia = async () => {
     try {
-      const payload = { title: builder.title, questions: builder.questions }
+      const payload = { title: builder.title, questions: builder.questions, close_at: builder.closeAt ? new Date(builder.closeAt).toISOString() : undefined }
       const session = builder.sessionId
         ? await api.updateTrivia(builder.sessionId, payload)
         : await api.createTrivia(builder.cycleId, payload)
@@ -498,7 +499,7 @@ export default function App() {
 
   const handlePublishManualTrivia = async () => {
     try {
-      const payload = { title: builder.title, questions: builder.questions }
+      const payload = { title: builder.title, questions: builder.questions, close_at: builder.closeAt ? new Date(builder.closeAt).toISOString() : undefined }
       const draft = builder.sessionId
         ? await api.updateTrivia(builder.sessionId, payload)
         : await api.createTrivia(builder.cycleId, payload)
@@ -514,6 +515,7 @@ export default function App() {
         correct_choice: '',
         explanation: '',
         aiTopic: '',
+        closeAt: '',
         questions: [],
       }))
       const closesAt = session.close_at ? new Date(session.close_at).toLocaleString() : 'the configured deadline'
@@ -526,7 +528,7 @@ export default function App() {
   const handleGenerateTrivia = async () => {
     setIsGeneratingTrivia(true)
     try {
-      const session = await api.generateTrivia(builder.cycleId, { title: builder.title, topic: builder.aiTopic })
+      const session = await api.generateTrivia(builder.cycleId, { title: builder.title, topic: builder.aiTopic, close_at: builder.closeAt ? new Date(builder.closeAt).toISOString() : undefined })
       setCycles(await api.getMasterCycles())
       setActiveSession(session)
       setBuilder((current) => ({
@@ -538,6 +540,7 @@ export default function App() {
         correct_choice: '',
         explanation: '',
         aiTopic: '',
+        closeAt: '',
         questions: [],
       }))
       const closesAt = session.close_at ? new Date(session.close_at).toLocaleString() : 'the configured deadline'
@@ -559,6 +562,7 @@ export default function App() {
         choices: ['', '', '', ''],
         correct_choice: '',
         explanation: '',
+        closeAt: '',
         questions: [],
       }))
       return
@@ -571,6 +575,7 @@ export default function App() {
         sessionId: String(session.id),
         title: session.title,
         questions: session.questions,
+        closeAt: session.close_at ? new Date(session.close_at).toISOString().slice(0, 16) : '',
       }))
     } catch (error) {
       setMessage(error.message)
