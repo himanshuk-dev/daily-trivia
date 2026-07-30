@@ -65,6 +65,7 @@ export default function App() {
     correct_choice: '',
     explanation: '',
     aiTopic: '',
+    customTopic: '',
     closeAt: '',
     questions: [],
   })
@@ -526,9 +527,14 @@ export default function App() {
   }
 
   const handleGenerateTrivia = async () => {
+    const topic = builder.aiTopic === '__custom__' ? builder.customTopic.trim() : builder.aiTopic
+    if (!topic) {
+      setMessage('Select a suggested topic or enter a custom topic.')
+      return
+    }
     setIsGeneratingTrivia(true)
     try {
-      const session = await api.generateTrivia(builder.cycleId, { title: builder.title, topic: builder.aiTopic, close_at: builder.closeAt ? new Date(builder.closeAt).toISOString() : undefined })
+      const session = await api.generateTrivia(builder.cycleId, { title: builder.title, topic, close_at: builder.closeAt ? new Date(builder.closeAt).toISOString() : undefined })
       setCycles(await api.getMasterCycles())
       setActiveSession(session)
       setBuilder((current) => ({
@@ -540,6 +546,7 @@ export default function App() {
         correct_choice: '',
         explanation: '',
         aiTopic: '',
+        customTopic: '',
         closeAt: '',
         questions: [],
       }))
@@ -562,6 +569,7 @@ export default function App() {
         choices: ['', '', '', ''],
         correct_choice: '',
         explanation: '',
+        customTopic: '',
         closeAt: '',
         questions: [],
       }))
