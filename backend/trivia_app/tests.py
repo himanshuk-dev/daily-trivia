@@ -419,6 +419,45 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(TeamMembership.objects.filter(pk=membership.id).exists())
 
+    def test_expired_trivia_is_evaluated_when_retrieved(self):
+        team = Team.objects.create(name='Auto Evaluation Team', slug='auto-evaluation-team', created_by=self.admin)
+        TeamMembership.objects.create(team=team, user=self.player, status=TeamMembership.Status.APPROVED)
+        cycle = MasterCycle.objects.create(
+            team=team,
+            master=self.master,
+            topic='Auto evaluation',
+            start_date=timezone.localdate(),
+            end_date=timezone.localdate() + timedelta(days=1),
+            status=MasterCycle.Status.ACTIVE,
+        )
+        session = TriviaSession.objects.create(
+            master_cycle=cycle,
+            title='Expired question',
+            topic='Testing',
+            status=TriviaSession.Status.LIVE,
+            close_at=timezone.now() - timedelta(minutes=1),
+        )
+        question = TriviaQuestion.objects.create(
+            trivia_session=session,
+            prompt='One plus one?',
+            choices=['1', '2'],
+            correct_choice='2',
+        )
+        UserAnswer.objects.create(
+            trivia_session=session,
+            trivia_question=question,
+            user=self.player,
+            selected_choice='2',
+        )
+        self.authenticate(self.player)
+
+        response = self.client.get(f'/api/trivia-sessions/{session.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        session.refresh_from_db()
+        self.assertEqual(session.status, TriviaSession.Status.CLOSED)
+        self.assertTrue(TrophyAward.objects.filter(trivia_session=session, user=self.player).exists())
+
     def test_team_approval_manual_trivia_and_team_leaderboard(self):
         self.authenticate(self.admin)
         response = self.client.post(

@@ -6,6 +6,7 @@ const suggestedTopics = [
   'Geography', 'Health and Wellness', 'Movies and Television', 'Music',
   'Nature and Wildlife', 'Science', 'Space', 'Sports', 'Technology', 'World History',
 ]
+const customTopicValue = '__custom__'
 
 export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQuestion, onSave, onPublishManual, onGenerate, isGenerating }) {
   if (!cycles.length) return null
@@ -13,6 +14,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
   const today = formatDate(new Date())
   const scheduledTopic = selectedCycle?.daily_topics?.find((item) => item.date === today)?.topic
   const selectedCycleDrafts = selectedCycle?.trivia_sessions?.filter((session) => session.status === 'draft') ?? []
+  const aiTopicReady = builder.aiTopic && (builder.aiTopic !== customTopicValue || builder.customTopic?.trim())
   return (
     <Grid item xs={12}>
       <Card sx={{ borderRadius: 4 }}><CardContent>
@@ -45,12 +47,15 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
             </Grid>
             <Grid item xs={12} md={4}><TextField fullWidth label="Trivia title" value={builder.title} onChange={(event) => setBuilder((current) => ({ ...current, title: event.target.value }))} /></Grid>
           </Grid>
+          <TextField fullWidth type="datetime-local" label="Trivia submission closing time (optional)" value={builder.closeAt} onChange={(event) => setBuilder((current) => ({ ...current, closeAt: event.target.value }))} InputLabelProps={{ shrink: true }} helperText="Leave blank to use the configured default answer window of 3 hours." />
           {selectedCycle ? (
             <TextField select fullWidth label="AI trivia topic (required for AI generation)" value={builder.aiTopic} onChange={(event) => setBuilder((current) => ({ ...current, aiTopic: event.target.value }))}>
               {scheduledTopic ? <MenuItem value={scheduledTopic}>{scheduledTopic} · Previously scheduled</MenuItem> : null}
               {suggestedTopics.filter((topic) => topic !== scheduledTopic).map((topic) => <MenuItem key={topic} value={topic}>{topic}</MenuItem>)}
+              <MenuItem value={customTopicValue}>Custom topic…</MenuItem>
             </TextField>
           ) : null}
+          {builder.aiTopic === customTopicValue ? <TextField fullWidth label="Custom AI topic" value={builder.customTopic} onChange={(event) => setBuilder((current) => ({ ...current, customTopic: event.target.value }))} placeholder="For example: Canadian federal public service history" /> : null}
           <Divider />
           <TextField fullWidth label="Question" value={builder.prompt} onChange={(event) => setBuilder((current) => ({ ...current, prompt: event.target.value }))} />
           <Grid container spacing={2}>
@@ -76,7 +81,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Button variant="contained" onClick={onSave} disabled={!builder.cycleId || builder.questions.length === 0}>{builder.sessionId ? 'Save draft changes' : 'Create manual draft'}</Button>
             <Button variant="contained" color="success" onClick={onPublishManual} disabled={!builder.cycleId || builder.questions.length === 0}>Create &amp; publish manual trivia</Button>
-            <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || !builder.aiTopic || Boolean(builder.sessionId) || isGenerating}>
+            <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || !aiTopicReady || Boolean(builder.sessionId) || isGenerating}>
               {isGenerating ? 'Generating trivia…' : 'Generate & publish AI question'}
             </Button>
           </Stack>

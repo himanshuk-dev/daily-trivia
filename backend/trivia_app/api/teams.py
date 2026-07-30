@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from ..models import Notification, Team, TeamMembership, TrophyAward, TriviaSession, UserAnswer
 from ..serializers import NotificationSerializer, TeamMembershipSerializer, TeamSerializer, UserSerializer
 from ..services.cycle_finalizer import finalize_expired_cycles
+from ..services.trivia_evaluator import evaluate_expired_trivia_sessions
 from .auth import user_payload
 from .common import get_object_or_404, is_team_admin
 
@@ -197,6 +198,7 @@ def platform_admin_update(request, pk: int):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def notification_list_update(request):
+    evaluate_expired_trivia_sessions()
     finalize_expired_cycles()
     notifications = Notification.objects.filter(user=request.user).select_related('team')
     if request.method == 'POST':
