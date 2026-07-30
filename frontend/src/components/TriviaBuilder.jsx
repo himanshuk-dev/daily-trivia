@@ -45,7 +45,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
             </Grid>
             <Grid item xs={12} md={4}><TextField fullWidth label="Trivia title" value={builder.title} onChange={(event) => setBuilder((current) => ({ ...current, title: event.target.value }))} /></Grid>
           </Grid>
-          <TextField fullWidth type="datetime-local" label="Trivia submission closing time (optional)" value={builder.closeAt} onChange={(event) => setBuilder((current) => ({ ...current, closeAt: event.target.value }))} InputLabelProps={{ shrink: true }} helperText="Leave blank to use the configured default answer window." />
+          <TextField fullWidth type="datetime-local" label="Trivia submission closing time (optional)" value={builder.closeAt} onChange={(event) => setBuilder((current) => ({ ...current, closeAt: event.target.value }))} InputLabelProps={{ shrink: true }} helperText="Leave blank to use the configured default answer window of 3 hours." />
           {selectedCycle ? (
             <TextField select fullWidth label="AI trivia topic (required for AI generation)" value={builder.aiTopic} onChange={(event) => setBuilder((current) => ({ ...current, aiTopic: event.target.value }))}>
               {scheduledTopic ? <MenuItem value={scheduledTopic}>{scheduledTopic} · Previously scheduled</MenuItem> : null}
