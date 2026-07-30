@@ -22,6 +22,7 @@ from ..serializers import (
 from ..services.ai_generator import TriviaGenerator
 from ..services.cycle_finalizer import finalize_expired_cycles
 from ..services.trivia_retention import delete_expired_trivia_questions
+from ..services.trivia_evaluator import evaluate_expired_trivia_sessions
 from .common import can_manage_cycle, get_object_or_404, is_approved_member, is_team_admin
 
 
@@ -56,6 +57,7 @@ def requested_close_at(request):
 @permission_classes([IsAuthenticated])
 def master_cycle_list_create(request):
     if request.method == 'GET':
+        evaluate_expired_trivia_sessions()
         finalize_expired_cycles()
         delete_expired_trivia_questions()
         cycles = MasterCycle.objects.select_related('master').prefetch_related('trivia_sessions__questions').order_by('-start_date')
@@ -189,6 +191,7 @@ def trivia_session_update(request, pk: int):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def trivia_session_retrieve(request, pk: int):
+    evaluate_expired_trivia_sessions([pk])
     session = get_object_or_404(TriviaSession.objects.prefetch_related('questions'), pk=pk)
     if session.master_cycle.team and not is_approved_member(request.user, session.master_cycle.team):
         return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
@@ -304,29 +307,13 @@ def trivia_session_evaluate(request, pk: int):
         return Response({'detail': "Only this cycle's master can evaluate trivia."}, status=status.HTTP_403_FORBIDDEN)
     if session.close_at and timezone.now() < session.close_at:
         return Response({'detail': 'This trivia can be evaluated after its answer window closes.'}, status=status.HTTP_409_CONFLICT)
-    correct_user_ids: list[int] = []
-    with transaction.atomic():
-        for answer in session.answers.select_related('user'):
-            answer.is_correct = answer.selected_choice == answer.trivia_question.correct_choice
-            answer.evaluated_at = timezone.now()
-            answer.save(update_fields=['is_correct', 'evaluated_at'])
-            if answer.is_correct:
-                correct_user_ids.append(answer.user_id)
-                TrophyAward.objects.get_or_create(
-                    trivia_session=session,
-                    user=answer.user,
-                    defaults={
-                        'reason': 'Correct trivia answer',
-                        'answered_at': answer.submitted_at,
-                    },
-                )
-    trophy_count = TrophyAward.objects.filter(trivia_session=session).count()
-    session.status = TriviaSession.Status.CLOSED
-    if session.close_at:
-        session.save(update_fields=['status'])
-    else:
+    if not session.close_at:
         session.close_at = timezone.now()
-        session.save(update_fields=['status', 'close_at'])
+        session.save(update_fields=['close_at'])
+    evaluate_expired_trivia_sessions([session.id])
+    session.refresh_from_db()
+    correct_user_ids = list(session.answers.filter(is_correct=True).values_list('user_id', flat=True))
+    trophy_count = TrophyAward.objects.filter(trivia_session=session).count()
     return Response({'session_id': session.id, 'correct_users': correct_user_ids, 'trophies_awarded': trophy_count})
 
 
