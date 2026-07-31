@@ -67,7 +67,7 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
             {answersClosed ? <Alert severity="success">This trivia has ended. Correct answers and your submitted answers are shown below.</Alert> : null}
             {session.has_submitted && !answersClosed ? (
               <Alert severity="success">
-                Your answer is submitted. Results will be available after the Trivia Master closes and evaluates the trivia.
+                Your answer is submitted. Results will be available after the Trivia closes and gets evaluated by system.
                 {session.close_at ? ` This trivia closes ${new Date(session.close_at).toLocaleString()}.` : ''}
               </Alert>
             ) : null}
