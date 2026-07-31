@@ -1,4 +1,6 @@
 import { Alert, Box, Button, Card, CardContent, Grid, MenuItem, Paper, Radio, RadioGroup, Stack, TextField, Typography } from '@mui/material'
+import CheckCircle from '@mui/icons-material/CheckCircle'
+import Cancel from '@mui/icons-material/Cancel'
 
 const fallbackChoices = ['Option A', 'Option B', 'Option C', 'Option D']
 
@@ -46,8 +48,13 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
                 ) : (
                   <Stack spacing={1}>
                     {session.submissions.map((submission) => (
-                      <Box key={submission.user_id} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-                        <Typography fontWeight={700}>{submission.username}</Typography>
+                      <Box key={submission.user_id} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'nowrap' }}>
+                          <Typography fontWeight={700}>{submission.username}</Typography>
+                          {submission.answers?.map((answer) => (
+                            <Stack key={answer.question_id} direction="row" spacing={0.75} alignItems="center">
+                              <Typography variant="body2" color="text.secondary">response: {answer.selected_choice}</Typography> {answer.is_correct === true ? <CheckCircle color="success" fontSize="small" /> : answer.is_correct === false ? <Cancel color="error" fontSize="small" /> : null}
+                            </Stack>
+                          ))}
                         <Typography color="text.secondary">
                           {submission.answers_submitted} {submission.answers_submitted === 1 ? 'answer' : 'answers'} · {new Date(submission.submitted_at).toLocaleString()}
                         </Typography>
@@ -60,7 +67,7 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
             {answersClosed ? <Alert severity="success">This trivia has ended. Correct answers and your submitted answers are shown below.</Alert> : null}
             {session.has_submitted && !answersClosed ? (
               <Alert severity="success">
-                Your answer is submitted. Results will be available after the Trivia Master closes and evaluates the trivia.
+                Your answer is submitted. Results will be available after the Trivia closes and gets evaluated by system.
                 {session.close_at ? ` This trivia closes ${new Date(session.close_at).toLocaleString()}.` : ''}
               </Alert>
             ) : null}

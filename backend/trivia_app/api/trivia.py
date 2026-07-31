@@ -198,27 +198,35 @@ def trivia_session_retrieve(request, pk: int):
 
     answer_window_closed = bool(session.close_at and timezone.now() >= session.close_at)
     can_manage = can_manage_cycle(request.user, session.master_cycle)
+    can_view_submissions = can_manage or bool(
+        session.master_cycle.team_id and is_team_admin(request.user, session.master_cycle.team)
+    )
     answers_by_question = {
         answer.trivia_question_id: answer
         for answer in UserAnswer.objects.filter(trivia_session=session, user=request.user)
     }
-    if can_manage or answer_window_closed or session.status == TriviaSession.Status.CLOSED:
+    if can_manage or can_view_submissions or answer_window_closed or session.status == TriviaSession.Status.CLOSED:
         data = TriviaSessionSerializer(session).data
         data['has_submitted'] = bool(answers_by_question)
-        if can_manage:
-            submissions = session.answers.values('user_id', 'user__username').annotate(
-                answers_submitted=Count('id'),
-                submitted_at=Max('submitted_at'),
-            ).order_by('submitted_at')
-            data['submissions'] = [
-                {
-                    'user_id': submission['user_id'],
-                    'username': submission['user__username'],
-                    'answers_submitted': submission['answers_submitted'],
-                    'submitted_at': submission['submitted_at'],
-                }
-                for submission in submissions
-            ]
+        if can_view_submissions:
+            submission_rows = {}
+            for answer in session.answers.select_related('user', 'trivia_question').order_by('submitted_at'):
+                row = submission_rows.setdefault(answer.user_id, {
+                    'user_id': answer.user_id,
+                    'username': answer.user.username,
+                    'answers_submitted': 0,
+                    'submitted_at': answer.submitted_at,
+                    'answers': [],
+                })
+                row['answers_submitted'] += 1
+                row['answers'].append({
+                    'question_id': answer.trivia_question_id,
+                    'question': answer.trivia_question.prompt,
+                    'selected_choice': answer.selected_choice,
+                    'is_correct': answer.is_correct if answer_window_closed or session.status == TriviaSession.Status.CLOSED else None,
+                    'correct_choice': answer.trivia_question.correct_choice if answer_window_closed or session.status == TriviaSession.Status.CLOSED else None,
+                })
+            data['submissions'] = list(submission_rows.values())
             data['submission_count'] = len(data['submissions'])
         if answer_window_closed or session.status == TriviaSession.Status.CLOSED:
             for question in data['questions']:
