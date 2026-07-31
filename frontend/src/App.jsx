@@ -250,8 +250,9 @@ export default function App() {
   )
   const canManageActiveSession = useMemo(() => {
     const cycle = cycles.find((item) => item.id === activeSession?.master_cycle)
-    return Boolean(cycle && (createdUser?.is_staff || cycle.master_name === createdUser?.username))
-  }, [activeSession, createdUser, cycles])
+    const team = teams.find((item) => String(item.id) === String(cycle?.team))
+    return Boolean(cycle && (createdUser?.is_staff || cycle.master_name === createdUser?.username || team?.membership_role === 'team_admin'))
+  }, [activeSession, createdUser, cycles, teams])
   const isActiveCycleMaster = useMemo(() => {
     const cycle = cycles.find((item) => item.id === activeSession?.master_cycle)
     return Boolean(cycle && cycle.master_name === createdUser?.username)
