@@ -333,15 +333,24 @@ def leaderboard_view(request):
         team = get_object_or_404(Team, pk=team_id)
         if not request.user.is_staff and not is_approved_member(request.user, team):
             return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
+    today = timezone.localdate()
+    current_cycle_filter = Q(
+        trophy_awards__trivia_session__master_cycle__status=MasterCycle.Status.ACTIVE,
+        trophy_awards__trivia_session__master_cycle__start_date__lte=today,
+        trophy_awards__trivia_session__master_cycle__end_date__gte=today,
+    )
+    if team_id:
+        current_cycle_filter &= Q(trophy_awards__trivia_session__master_cycle__team_id=team_id)
+
     leaderboard = (
         User.objects.annotate(
             trophy_count=Count(
                 'trophy_awards',
-                filter=Q(trophy_awards__trivia_session__master_cycle__team_id=team_id) if team_id else Q(),
+                filter=current_cycle_filter,
             ),
             first_correct_at=Min(
                 'trophy_awards__answered_at',
-                filter=Q(trophy_awards__trivia_session__master_cycle__team_id=team_id) if team_id else Q(),
+                filter=current_cycle_filter,
             ),
         )
         .filter(trophy_count__gt=0)
