@@ -1,6 +1,6 @@
-import { Box, Button, Card, CardContent, Divider, Grid, List, ListItem, ListItemText, Typography } from '@mui/material'
+import { Box, Button, Card, CardContent, Chip, Divider, Grid, List, ListItem, ListItemText, Stack, Typography } from '@mui/material'
 
-export function CurrentCyclesCard({ cycles, onLoadTrivia }) {
+export function CurrentCyclesCard({ cycles, teams = [], showTeamTags = false, onLoadTrivia }) {
   return (
     <Grid item xs={12} md={4}>
       <Card sx={{ borderRadius: 4, height: '100%' }}>
@@ -14,7 +14,17 @@ export function CurrentCyclesCard({ cycles, onLoadTrivia }) {
             ) : (
               cycles.map((cycle) => (
                 <Box key={cycle.id} sx={{ mb: 2 }}>
-                  <Typography fontWeight={700}>{cycle.topic}</Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                    <Typography fontWeight={700}>{cycle.topic}</Typography>
+                    {showTeamTags ? (
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        color="primary"
+                        label={teams.find((team) => String(team.id) === String(cycle.team))?.name || 'Unknown team'}
+                      />
+                    ) : null}
+                  </Stack>
                   <Typography variant="body2" color="text.secondary">
                     Master: {cycle.master_name} | Status: {cycle.status}
                   </Typography>
