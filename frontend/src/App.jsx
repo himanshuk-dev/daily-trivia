@@ -734,7 +734,12 @@ export default function App() {
               onMarkNotificationsRead={handleMarkNotificationsRead}
               onLogout={handleLogout}
             />
-            <CurrentCyclesCard cycles={cycles} onLoadTrivia={handleLoadFirstSession} />
+            <CurrentCyclesCard
+              cycles={cycles}
+              teams={teams}
+              showTeamTags={createdUser.is_staff}
+              onLoadTrivia={handleLoadFirstSession}
+            />
             <LeaderboardCard
               leaderboard={leaderboard}
               teams={createdUser.is_staff ? teams : []}
