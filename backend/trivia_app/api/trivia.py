@@ -331,7 +331,7 @@ def leaderboard_view(request):
     team_id = request.query_params.get('team')
     if team_id:
         team = get_object_or_404(Team, pk=team_id)
-        if not is_approved_member(request.user, team):
+        if not request.user.is_staff and not is_approved_member(request.user, team):
             return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
     leaderboard = (
         User.objects.annotate(

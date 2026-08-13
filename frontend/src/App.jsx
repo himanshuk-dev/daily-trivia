@@ -43,6 +43,7 @@ export default function App() {
   const [notifications, setNotifications] = useState([])
   const [newTeam, setNewTeam] = useState({ name: '', approval_required: true, initial_admin_id: '' })
   const [leaderboard, setLeaderboard] = useState([])
+  const [leaderboardTeamId, setLeaderboardTeamId] = useState('')
   const [cycles, setCycles] = useState([])
   const [masterCycle, setMasterCycle] = useState({
     master_username: '',
@@ -148,7 +149,10 @@ export default function App() {
         ]
 
         if (createdUser.is_staff) {
-          requests.push(api.getLeaderboard().then(setLeaderboard))
+          requests.push(
+            (leaderboardTeamId ? api.getTeamLeaderboard(leaderboardTeamId) : api.getLeaderboard())
+              .then(setLeaderboard),
+          )
         } else if (selectedTeamId) {
           requests.push(api.getTeamLeaderboard(selectedTeamId).then(setLeaderboard))
         }
@@ -184,12 +188,15 @@ export default function App() {
       window.removeEventListener('focus', refreshOnFocus)
       document.removeEventListener('visibilitychange', refreshOnFocus)
     }
-  }, [activeSession?.id, createdUser, dashboardView, selectedTeamId, teams])
+  }, [activeSession?.id, createdUser, dashboardView, leaderboardTeamId, selectedTeamId, teams])
 
   useEffect(() => {
     if (!selectedTeamId) {
       if (createdUser?.is_staff) {
-        api.getLeaderboard().then(setLeaderboard).catch(() => setLeaderboard([]))
+        const leaderboardRequest = leaderboardTeamId
+          ? api.getTeamLeaderboard(leaderboardTeamId)
+          : api.getLeaderboard()
+        leaderboardRequest.then(setLeaderboard).catch(() => setLeaderboard([]))
       } else {
         setLeaderboard([])
       }
@@ -197,7 +204,7 @@ export default function App() {
       return
     }
     const leaderboardRequest = createdUser?.is_staff
-      ? api.getLeaderboard()
+      ? (leaderboardTeamId ? api.getTeamLeaderboard(leaderboardTeamId) : api.getLeaderboard())
       : api.getTeamLeaderboard(selectedTeamId)
     leaderboardRequest.then(setLeaderboard).catch(() => setLeaderboard([]))
     const team = teams.find((candidate) => String(candidate.id) === String(selectedTeamId))
@@ -208,7 +215,7 @@ export default function App() {
       setTeamMembers([])
       setTeamAnalytics(null)
     }
-  }, [createdUser, selectedTeamId, teams])
+  }, [createdUser, leaderboardTeamId, selectedTeamId, teams])
 
   useEffect(() => {
     setNewMembership({ user_id: '', role: 'member' })
@@ -296,6 +303,7 @@ export default function App() {
       setUsers([])
       setTeams([])
       setSelectedTeamId('')
+      setLeaderboardTeamId('')
       setCycles([])
       setLeaderboard([])
       setAuthStep('request')
@@ -727,7 +735,12 @@ export default function App() {
               onLogout={handleLogout}
             />
             <CurrentCyclesCard cycles={cycles} onLoadTrivia={handleLoadFirstSession} />
-            <LeaderboardCard leaderboard={leaderboard} />
+            <LeaderboardCard
+              leaderboard={leaderboard}
+              teams={createdUser.is_staff ? teams : []}
+              selectedTeamId={leaderboardTeamId}
+              onTeamChange={createdUser.is_staff ? setLeaderboardTeamId : undefined}
+            />
             <TeamSelectorCard
               teams={teams}
               selectedTeam={selectedTeam}

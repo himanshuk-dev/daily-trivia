@@ -610,6 +610,9 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['username'], self.player.username)
         self.assertEqual(response.data[0]['trophy_count'], 1)
+        response = self.client.get(f"/api/leaderboard/?team={team['id']}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]['username'], self.player.username)
 
     def test_leaderboard_uses_earliest_correct_answer_as_tiebreaker(self):
         faster_player = User.objects.create_user(username='faster-player', email='fast@example.com')
