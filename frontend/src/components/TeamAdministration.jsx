@@ -71,12 +71,12 @@ export function TeamAdministration({
             <Grid item xs={12} sm={6} md={3}>
               <Typography variant="caption" color="text.secondary">Activity</Typography>
               <Typography fontWeight={900}>{cycles.length} cycles</Typography>
-              <Typography variant="body2" color="text.secondary">{analytics?.trivia_sessions ?? 0} sessions · {analytics?.trophies ?? 0} trophies</Typography>
+              <Typography variant="body2" color="text.secondary">{analytics?.trivia_sessions ?? 0} sessions · {analytics?.trophies ?? 0} current trophies</Typography>
             </Grid>
           </Grid>
         </Paper>
 
-        {analytics ? <Alert severity="info" sx={{ mb: 2 }}>{analytics.approved_members} members · {analytics.pending_members} pending · {analytics.trivia_sessions} sessions · {analytics.answers} answers · {analytics.trophies} trophies</Alert> : null}
+        {analytics ? <Alert severity="info" sx={{ mb: 2 }}>{analytics.approved_members} members · {analytics.pending_members} pending · {analytics.trivia_sessions} sessions · {analytics.answers} answers · {analytics.trophies} current sprint trophies</Alert> : null}
 
         <Typography variant="subtitle1" fontWeight={900} sx={{ mt: 3 }}>Masters and cycles</Typography>
         {cycles.length === 0 ? <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>No master has been assigned to a cycle for this team.</Typography> : (

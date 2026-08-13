@@ -605,14 +605,17 @@ class TeamTriviaWorkflowTests(APITestCase):
                 for submission in overview_team['trivia_sessions'][0]['submissions']
             },
         )
-        self.assertEqual(overview_team['leaderboard'][0]['username'], self.player.username)
+        self.assertEqual(overview_team['leaderboard'], [])
         response = self.client.get('/api/leaderboard/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data[0]['username'], self.player.username)
-        self.assertEqual(response.data[0]['trophy_count'], 1)
+        self.assertEqual(response.data, [])
         response = self.client.get(f"/api/leaderboard/?team={team['id']}")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data[0]['username'], self.player.username)
+        self.assertEqual(response.data, [])
+        response = self.client.get('/api/master-cycles/')
+        historical_cycle = next(item for item in response.data if item['id'] == cycle.id)
+        self.assertEqual(historical_cycle['sprint_leaderboard'][0]['username'], self.player.username)
+        self.assertEqual(historical_cycle['sprint_leaderboard'][0]['trophy_count'], 1)
 
     def test_leaderboard_uses_earliest_correct_answer_as_tiebreaker(self):
         faster_player = User.objects.create_user(username='faster-player', email='fast@example.com')
@@ -629,7 +632,7 @@ class TeamTriviaWorkflowTests(APITestCase):
             topic='Ranking',
             start_date=timezone.localdate(),
             end_date=timezone.localdate(),
-            status=MasterCycle.Status.CLOSED,
+            status=MasterCycle.Status.ACTIVE,
         )
         session = TriviaSession.objects.create(
             master_cycle=cycle,
@@ -645,6 +648,26 @@ class TeamTriviaWorkflowTests(APITestCase):
             user=faster_player,
             answered_at=now - timedelta(seconds=10),
         )
+        previous_cycle = MasterCycle.objects.create(
+            team=team,
+            master=self.master,
+            topic='Previous ranking',
+            start_date=timezone.localdate() - timedelta(days=14),
+            end_date=timezone.localdate() - timedelta(days=1),
+            status=MasterCycle.Status.CLOSED,
+        )
+        previous_session = TriviaSession.objects.create(
+            master_cycle=previous_cycle,
+            title='Previous ranking question',
+            topic='Previous ranking',
+            status=TriviaSession.Status.CLOSED,
+            close_at=timezone.now() - timedelta(days=1),
+        )
+        TrophyAward.objects.create(
+            trivia_session=previous_session,
+            user=self.player,
+            answered_at=now - timedelta(days=1),
+        )
 
         self.authenticate(self.player)
         response = self.client.get(f'/api/leaderboard/?team={team.id}')
@@ -654,6 +677,12 @@ class TeamTriviaWorkflowTests(APITestCase):
             [entry['username'] for entry in response.data],
             [faster_player.username, self.player.username],
         )
+        self.assertEqual([entry['trophy_count'] for entry in response.data], [1, 1])
+
+        response = self.client.get('/api/master-cycles/')
+        historical_cycle = next(item for item in response.data if item['id'] == previous_cycle.id)
+        self.assertEqual(historical_cycle['sprint_leaderboard'][0]['username'], self.player.username)
+        self.assertEqual(historical_cycle['sprint_leaderboard'][0]['trophy_count'], 1)
 
     @override_settings(TRIVIA_QUESTION_RETENTION_DAYS=17)
     def test_question_cleanup_preserves_cycle_ranking_and_limits_user_history(self):

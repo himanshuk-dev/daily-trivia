@@ -6,7 +6,7 @@ export function LeaderboardCard({ leaderboard, teams = [], selectedTeamId = '', 
     <Grid item xs={12} md={4}>
       <Card sx={{ borderRadius: 4, height: '100%' }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>Public leaderboard</Typography>
+          <Typography variant="h6" gutterBottom>Current sprint leaderboard</Typography>
           {onTeamChange ? (
             <TextField
               select
@@ -26,7 +26,7 @@ export function LeaderboardCard({ leaderboard, teams = [], selectedTeamId = '', 
           <Stack spacing={1}>
             {leaderboard.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
-                Leaderboard appears after correct answers are evaluated.
+                No trophies have been awarded in the current sprint.
               </Typography>
             ) : (
               leaderboard.map((entry, index) => (

@@ -71,8 +71,8 @@ export function PlatformOverview({ overview, onRefresh }) {
                 ))}
               </Stack>
 
-              <Typography fontWeight={900} sx={{ mb: 1 }}>Leaderboard</Typography>
-              {team.leaderboard.length === 0 ? <Typography color="text.secondary">No trophies awarded.</Typography> : (
+              <Typography fontWeight={900} sx={{ mb: 1 }}>Current sprint leaderboard</Typography>
+              {team.leaderboard.length === 0 ? <Typography color="text.secondary">No trophies awarded in the current sprint.</Typography> : (
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                   {team.leaderboard.map((entry, index) => (
                     <Chip key={entry.user_id} icon={<EmojiEventsIcon />} color="warning" label={`#${index + 1} ${entry.username} · ${entry.trophy_count}`} />

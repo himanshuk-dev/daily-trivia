@@ -9,7 +9,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import Notification, Team, TeamMembership, TrophyAward, TriviaSession, UserAnswer
+from ..models import MasterCycle, Notification, Team, TeamMembership, TrophyAward, TriviaSession, UserAnswer
 from ..serializers import NotificationSerializer, TeamMembershipSerializer, TeamSerializer, UserSerializer
 from ..services.cycle_finalizer import finalize_expired_cycles
 from ..services.trivia_evaluator import evaluate_expired_trivia_sessions
@@ -213,13 +213,20 @@ def team_analytics(request, pk: int):
     team = get_object_or_404(Team, pk=pk)
     if not is_team_admin(request.user, team):
         return Response({'detail': 'Only a team admin can view analytics.'}, status=status.HTTP_403_FORBIDDEN)
+    today = timezone.localdate()
+    current_trophies = TrophyAward.objects.filter(
+        trivia_session__master_cycle__team=team,
+        trivia_session__master_cycle__status=MasterCycle.Status.ACTIVE,
+        trivia_session__master_cycle__start_date__lte=today,
+        trivia_session__master_cycle__end_date__gte=today,
+    )
     return Response({
         'team_id': team.id,
         'approved_members': team.memberships.filter(status=TeamMembership.Status.APPROVED).count(),
         'pending_members': team.memberships.filter(status=TeamMembership.Status.PENDING).count(),
         'trivia_sessions': TriviaSession.objects.filter(master_cycle__team=team).count(),
         'answers': UserAnswer.objects.filter(trivia_session__master_cycle__team=team).count(),
-        'trophies': TrophyAward.objects.filter(trivia_session__master_cycle__team=team).count(),
+        'trophies': current_trophies.count(),
     })
 
 
@@ -260,16 +267,23 @@ def platform_overview(request):
                 ],
             })
 
-        leaderboard = User.objects.filter(
+        today = timezone.localdate()
+        current_cycle_filter = Q(
             trophy_awards__trivia_session__master_cycle__team=team,
+            trophy_awards__trivia_session__master_cycle__status=MasterCycle.Status.ACTIVE,
+            trophy_awards__trivia_session__master_cycle__start_date__lte=today,
+            trophy_awards__trivia_session__master_cycle__end_date__gte=today,
+        )
+        leaderboard = User.objects.filter(
+            current_cycle_filter,
         ).annotate(
             trophy_count=Count(
                 'trophy_awards',
-                filter=Q(trophy_awards__trivia_session__master_cycle__team=team),
+                filter=current_cycle_filter,
             ),
             first_correct_at=Min(
                 'trophy_awards__answered_at',
-                filter=Q(trophy_awards__trivia_session__master_cycle__team=team),
+                filter=current_cycle_filter,
             ),
         ).order_by('-trophy_count', F('first_correct_at').asc(nulls_last=True), 'username')
         members = team.memberships.select_related('user').order_by('status', 'user__username')
