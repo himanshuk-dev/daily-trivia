@@ -8,12 +8,13 @@ const suggestedTopics = [
 ]
 const customTopicValue = '__custom__'
 
-export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQuestion, onSave, onPublishManual, onGenerate, isGenerating }) {
+export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQuestion, onSave, onPublishManual, onGenerate, onRegenerate, isGenerating }) {
   if (!cycles.length) return null
   const selectedCycle = cycles.find((cycle) => String(cycle.id) === String(builder.cycleId))
   const today = formatDate(new Date())
   const scheduledTopic = selectedCycle?.daily_topics?.find((item) => item.date === today)?.topic
   const selectedCycleDrafts = selectedCycle?.trivia_sessions?.filter((session) => session.status === 'draft') ?? []
+  const selectedDraft = selectedCycleDrafts.find((session) => String(session.id) === String(builder.sessionId))
   const aiTopicReady = builder.aiTopic && (builder.aiTopic !== customTopicValue || builder.customTopic?.trim())
   return (
     <Grid item xs={12}>
@@ -85,15 +86,23 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
           <TextField fullWidth label="Explanation" value={builder.explanation} onChange={(event) => setBuilder((current) => ({ ...current, explanation: event.target.value }))} />
           <Button variant="outlined" onClick={onAddQuestion}>Add question to draft</Button>
           <List dense>{builder.questions.map((question, index) => (
-            <ListItem key={`${question.prompt}-${index}`} secondaryAction={<Button color="error" onClick={() => setBuilder((current) => ({ ...current, questions: current.questions.filter((_, itemIndex) => itemIndex !== index) }))}>Remove</Button>}>
+            <ListItem key={`${question.prompt}-${index}`} secondaryAction={<Stack direction="row" spacing={1}><Button onClick={() => setBuilder((current) => ({
+              ...current,
+              prompt: question.prompt,
+              choices: [...question.choices],
+              correct_choice: question.correct_choice,
+              explanation: question.explanation,
+              questions: current.questions.filter((_, itemIndex) => itemIndex !== index),
+            }))}>Edit</Button><Button color="error" onClick={() => setBuilder((current) => ({ ...current, questions: current.questions.filter((_, itemIndex) => itemIndex !== index) }))}>Remove</Button></Stack>}>
               <ListItemText primary={`${index + 1}. ${question.prompt}`} secondary={`Correct: ${question.correct_choice}`} />
             </ListItem>
           ))}</List>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Button variant="contained" onClick={onSave} disabled={!builder.cycleId || builder.questions.length === 0}>{builder.sessionId ? 'Save draft changes' : 'Create manual draft'}</Button>
-            <Button variant="contained" color="success" onClick={onPublishManual} disabled={!builder.cycleId || builder.questions.length === 0}>Create &amp; publish manual trivia</Button>
+            <Button variant="contained" color="success" onClick={onPublishManual} disabled={!builder.cycleId || builder.questions.length === 0}>{builder.sessionId ? 'Publish reviewed trivia' : 'Create & publish manual trivia'}</Button>
+            {selectedDraft?.generation_method === 'ai' ? <Button variant="outlined" color="warning" onClick={onRegenerate} disabled={isGenerating}>{isGenerating ? 'Regenerating…' : 'Regenerate AI question'}</Button> : null}
             <Button variant="contained" color="warning" onClick={onGenerate} disabled={!builder.cycleId || !aiTopicReady || Boolean(builder.sessionId) || isGenerating}>
-              {isGenerating ? 'Generating trivia…' : 'Generate & publish AI question'}
+              {isGenerating ? 'Generating trivia…' : 'Generate AI draft'}
             </Button>
           </Stack>
         </Stack>
@@ -102,7 +111,7 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
             <CircularProgress color="secondary" size={56} />
             <Box sx={{ mt: 2 }}>
               <Typography variant="h6" fontWeight={800}>Creating today’s trivia…</Typography>
-              <Typography color="text.secondary">AI is preparing and publishing one question. This may take a few moments.</Typography>
+              <Typography color="text.secondary">AI is preparing a draft question for your review. This may take a few moments.</Typography>
             </Box>
           </Paper>
         </Backdrop>

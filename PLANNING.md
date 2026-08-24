@@ -90,7 +90,7 @@ Build a trivia app where users create usernames, a manually selected master choo
 ## Key Rules
 - Usernames must be unique.
 - Only the active master can create or publish trivia for the current cycle.
-- Requesting an AI daily challenge is the master's approval to publish the generated question immediately.
+- AI-generated questions remain drafts until the master reviews and explicitly publishes them.
 - Trophy awards should be immutable once granted.
 - Every award should be tied to a specific trivia session.
 

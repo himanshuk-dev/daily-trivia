@@ -129,7 +129,7 @@ The Groq request uses strict JSON Schema output. The service additionally valida
 
 Correct choices and explanations are hidden from ordinary members while the answer window is open. After `close_at`, the session endpoint exposes those results together with only the requesting member's own submitted answer, whether or not trophy evaluation has run yet.
 
-For a cycle master, the session response also includes a submission summary containing participant identity, answer count, and latest submission time. It does not expose selected choices through that summary.
+For a cycle master, the session response includes participant identity, selected choices, answer count, and submission time while trivia is live. Because the master can review correct answers and participant responses, the master cannot submit answers to trivia in their assigned cycle.
 
 Platform administrators have a staff-only aggregate overview that groups every team with its memberships, trivia sessions, submission participants, and team leaderboard. This endpoint exposes participation metadata but not participants' selected choices.
 
@@ -266,7 +266,7 @@ stateDiagram-v2
 A team administrator creates a `MasterCycle` and assigns an approved team member as master. The master can then:
 
 - Create a manual session with validated questions.
-- Ask the AI service to create one question, publish it immediately, and set its deadline from `TRIVIA_ANSWER_WINDOW_HOURS`.
+- Ask the AI service to create one draft question that the master can review, edit, or regenerate before publication. The answer deadline is set from `TRIVIA_ANSWER_WINDOW_HOURS` when published.
 - Reload and replace the questions of an existing draft.
 
 ### Publication
@@ -333,6 +333,7 @@ All routes are prefixed with `/api/`. Except for requesting and verifying an ema
 | --- | --- | --- |
 | `GET`, `POST` | `/master-cycles/` | List accessible cycles or assign a master |
 | `POST` | `/master-cycles/{id}/generate-trivia/` | Generate an AI/local draft |
+| `POST` | `/trivia-sessions/{id}/regenerate/` | Replace an AI-generated draft question |
 | `POST` | `/master-cycles/{id}/trivia-sessions/` | Create a manual draft |
 | `GET` | `/trivia-sessions/{id}/` | Retrieve role-appropriate session data |
 | `PUT` | `/trivia-sessions/{id}/edit/` | Replace a draft's title/questions |

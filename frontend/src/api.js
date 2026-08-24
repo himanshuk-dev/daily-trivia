@@ -77,6 +77,7 @@ export const api = {
   updateTrivia: (sessionId, payload) => request(`/trivia-sessions/${sessionId}/edit/`, { method: 'PUT', body: JSON.stringify(payload) }),
   getTriviaSession: (sessionId) => request(`/trivia-sessions/${sessionId}/`),
   publishTriviaSession: (sessionId) => request(`/trivia-sessions/${sessionId}/publish/`, { method: 'POST' }),
+  regenerateTriviaSession: (sessionId, payload) => request(`/trivia-sessions/${sessionId}/regenerate/`, { method: 'POST', body: JSON.stringify(payload) }),
   evaluateTriviaSession: (sessionId) => request(`/trivia-sessions/${sessionId}/evaluate/`, { method: 'POST' }),
   submitAnswer: (sessionId, payload) => request(`/trivia-sessions/${sessionId}/answers/`, { method: 'POST', body: JSON.stringify(payload) }),
 }

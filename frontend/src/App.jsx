@@ -565,7 +565,7 @@ export default function App() {
         questions: [],
       }))
       const closesAt = session.close_at ? new Date(session.close_at).toLocaleString() : 'the configured deadline'
-      setMessage(`Manual trivia published: ${session.title}. Answers close ${closesAt}.`)
+      setMessage(`${draft.generation_method === 'ai' ? 'AI-generated' : 'Manual'} trivia published: ${session.title}. Answers close ${closesAt}.`)
     } catch (error) {
       setMessage(error.message)
     }
@@ -581,23 +581,40 @@ export default function App() {
     try {
       const session = await api.generateTrivia(builder.cycleId, { title: builder.title, topic, difficulty: builder.difficulty, close_at: builder.closeAt ? new Date(builder.closeAt).toISOString() : undefined })
       setCycles(await api.getMasterCycles())
-      setActiveSession(session)
       setBuilder((current) => ({
         ...current,
-        sessionId: '',
-        title: '',
+        sessionId: String(session.id),
+        title: session.title,
         prompt: '',
         choices: ['', '', '', ''],
         correct_choice: '',
         explanation: '',
-        aiTopic: '',
-        customTopic: '',
-        difficulty: 'medium',
-        closeAt: '',
-        questions: [],
+        questions: session.questions,
       }))
-      const closesAt = session.close_at ? new Date(session.close_at).toLocaleString() : 'the configured deadline'
-      setMessage(`AI generated and published ${session.title}. Answers close ${closesAt}.`)
+      setMessage(`AI draft generated: ${session.title}. Review, edit, regenerate, or publish it when ready.`)
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setIsGeneratingTrivia(false)
+    }
+  }
+
+  const handleRegenerateTrivia = async () => {
+    if (!builder.sessionId) return
+    setIsGeneratingTrivia(true)
+    try {
+      const session = await api.regenerateTriviaSession(builder.sessionId, { difficulty: builder.difficulty })
+      setCycles(await api.getMasterCycles())
+      setBuilder((current) => ({
+        ...current,
+        title: session.title,
+        prompt: '',
+        choices: ['', '', '', ''],
+        correct_choice: '',
+        explanation: '',
+        questions: session.questions,
+      }))
+      setMessage(`Generated a new AI question for ${session.title}. Review it before publishing.`)
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -628,6 +645,10 @@ export default function App() {
         cycleId: String(session.master_cycle),
         sessionId: String(session.id),
         title: session.title,
+        prompt: '',
+        choices: ['', '', '', ''],
+        correct_choice: '',
+        explanation: '',
         questions: session.questions,
         closeAt: session.close_at ? new Date(session.close_at).toISOString().slice(0, 16) : '',
       }))
@@ -864,6 +885,7 @@ export default function App() {
               onSave={handleCreateTrivia}
               onPublishManual={handlePublishManualTrivia}
               onGenerate={handleGenerateTrivia}
+              onRegenerate={handleRegenerateTrivia}
               isGenerating={isGeneratingTrivia}
             />
             <LiveTrivia
