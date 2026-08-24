@@ -207,7 +207,8 @@ class TeamTriviaWorkflowTests(APITestCase):
         token, _ = Token.objects.get_or_create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
 
-    def test_team_and_platform_admins_can_edit_and_delete_master_cycles(self):
+    @patch('trivia_app.api.trivia.send_master_cycle_assigned_email')
+    def test_team_and_platform_admins_can_edit_and_delete_master_cycles(self, send_assignment_email):
         team_admin = User.objects.create_user(username='team-admin', email='team-admin@example.com')
         team = Team.objects.create(name='Cycle Team', slug='cycle-team', created_by=self.admin)
         TeamMembership.objects.create(
@@ -234,6 +235,14 @@ class TeamTriviaWorkflowTests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         cycle = MasterCycle.objects.get(pk=response.data['id'])
+        send_assignment_email.assert_called_once_with(
+            recipient=self.master.email,
+            master_name=self.master.username,
+            team_name=team.name,
+            cycle_name='Original cycle',
+            start_date=cycle.start_date,
+            end_date=cycle.end_date,
+        )
         self.assertTrue(Notification.objects.filter(
             user=self.player,
             team=team,

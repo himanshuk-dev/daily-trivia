@@ -15,6 +15,23 @@ def send_login_code_email(*, recipient: str, code: str) -> None:
         f'Your Daily Trivia login code is {code}. '
         f'It expires in {settings.LOGIN_CODE_EXPIRY_MINUTES} minutes.'
     )
+    send_transactional_email(recipient=recipient, subject=subject, message=message)
+
+
+def send_master_cycle_assigned_email(*, recipient: str, master_name: str, team_name: str, cycle_name: str, start_date, end_date) -> None:
+    send_transactional_email(
+        recipient=recipient,
+        subject=f'You are the trivia master for {cycle_name}',
+        message=(
+            f'Hello {master_name},\n\n'
+            f'You have been assigned as the trivia master for the {cycle_name} sprint cycle '
+            f'on {team_name}. The cycle runs from {start_date} to {end_date}.\n\n'
+            'Sign in to Daily Trivia to create and manage questions for your team.'
+        ),
+    )
+
+
+def send_transactional_email(*, recipient: str, subject: str, message: str) -> None:
 
     if settings.EMAIL_DELIVERY_PROVIDER == 'smtp':
         _send_with_smtp(recipient=recipient, subject=subject, message=message)

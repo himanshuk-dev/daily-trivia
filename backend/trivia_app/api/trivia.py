@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from django.conf import settings
@@ -20,10 +21,14 @@ from ..serializers import (
     UserAnswerSerializer,
 )
 from ..services.ai_generator import TriviaGenerator
+from ..services.email_sender import EmailDeliveryError, send_master_cycle_assigned_email
 from ..services.cycle_finalizer import finalize_expired_cycles
 from ..services.trivia_retention import delete_expired_trivia_questions
 from ..services.trivia_evaluator import evaluate_expired_trivia_sessions
 from .common import can_manage_cycle, get_object_or_404, is_approved_member, is_team_admin
+
+
+logger = logging.getLogger(__name__)
 
 
 def notify_trivia_published(team: Team, session: TriviaSession, publisher: User) -> None:
@@ -101,6 +106,18 @@ def master_cycle_list_create(request):
         request.user,
         f'New sprint cycle: {cycle.topic} · Master: {cycle.master.username} · {cycle.start_date} to {cycle.end_date}',
     )
+    if cycle.master.email:
+        try:
+            send_master_cycle_assigned_email(
+                recipient=cycle.master.email,
+                master_name=cycle.master.get_full_name() or cycle.master.username,
+                team_name=team.name,
+                cycle_name=cycle.topic,
+                start_date=cycle.start_date,
+                end_date=cycle.end_date,
+            )
+        except EmailDeliveryError:
+            logger.exception('Could not send master-cycle assignment email for cycle %s.', cycle.id)
     return Response(MasterCycleSerializer(cycle).data, status=status.HTTP_201_CREATED)
 
 
