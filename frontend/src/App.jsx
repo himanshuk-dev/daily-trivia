@@ -338,6 +338,33 @@ export default function App() {
     }
   }
 
+  const handleUpdateMasterCycle = async (cycleId, payload) => {
+    try {
+      const updated = await api.updateMasterCycle(cycleId, payload)
+      setCycles((current) => current.map((cycle) => (cycle.id === updated.id ? updated : cycle)))
+      setMessage(`Updated the ${updated.topic} cycle.`)
+      return true
+    } catch (error) {
+      setMessage(error.message)
+      return false
+    }
+  }
+
+  const handleDeleteMasterCycle = async (cycle) => {
+    const confirmed = window.confirm(
+      `Delete the ${cycle.topic} cycle? This permanently removes its trivia sessions, answers, and trophies.`,
+    )
+    if (!confirmed) return
+    try {
+      await api.deleteMasterCycle(cycle.id)
+      setCycles((current) => current.filter((item) => item.id !== cycle.id))
+      if (activeSession?.master_cycle === cycle.id) setActiveSession(null)
+      setMessage(`Deleted the ${cycle.topic} cycle.`)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
   const handleJoinTeam = async () => {
     try {
       const membership = await api.joinTeam(inviteCode.trim())
@@ -790,6 +817,8 @@ export default function App() {
                 onEditTeam={handleEditTeam}
                 onToggleTeamApproval={handleToggleTeamApproval}
                 onDeleteTeam={handleDeleteTeam}
+                onUpdateCycle={handleUpdateMasterCycle}
+                onDeleteCycle={handleDeleteMasterCycle}
               />
             ) : null}
 

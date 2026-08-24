@@ -86,6 +86,39 @@ def master_cycle_list_create(request):
     return Response(MasterCycleSerializer(cycle).data, status=status.HTTP_201_CREATED)
 
 
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def master_cycle_manage(request, pk: int):
+    cycle = get_object_or_404(MasterCycle.objects.select_related('team', 'master'), pk=pk)
+    if not cycle.team or not is_team_admin(request.user, cycle.team):
+        return Response(
+            {'detail': 'Only a team admin or platform admin can manage this master cycle.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if cycle.status != MasterCycle.Status.ACTIVE:
+        return Response(
+            {'detail': 'Only active master cycles can be edited or deleted.'},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    if request.method == 'DELETE':
+        cycle.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = MasterCycleSerializer(cycle, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    master_username = serializer.validated_data.get('master_username')
+    if master_username:
+        master = User.objects.filter(username=master_username, is_active=True).first()
+        if not master or not is_approved_member(master, cycle.team):
+            return Response(
+                {'master_username': ['The master must be an approved team member.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    serializer.save()
+    return Response(MasterCycleSerializer(cycle).data)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def master_cycle_generate_trivia(request, pk: int):
