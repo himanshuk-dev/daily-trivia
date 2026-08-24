@@ -15,7 +15,7 @@ from rest_framework.test import APITestCase
 
 from trivia_app.models import EmailLoginCode, MasterCycle, Notification, Team, TeamMembership, TrophyAward, TriviaQuestion, TriviaSession, UserAnswer
 from trivia_app.services.ai_generator import GROQ_BASE_URL, GeneratedQuestion, TriviaGenerator
-from trivia_app.services.email_sender import send_login_code_email
+from trivia_app.services.email_sender import send_login_code_email, send_master_cycle_assigned_email
 
 
 class TriviaGeneratorTests(SimpleTestCase):
@@ -90,6 +90,35 @@ class BrevoEmailDeliveryTests(SimpleTestCase):
             },
             timeout=10,
         )
+
+
+@override_settings(
+    EMAIL_DELIVERY_PROVIDER='smtp',
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    DEFAULT_FROM_EMAIL='noreply@example.com',
+)
+class MasterCycleEmailTests(SimpleTestCase):
+    def test_sends_formatted_plain_text_and_html_assignment_email(self):
+        send_master_cycle_assigned_email(
+            recipient='master@example.com',
+            master_name='Alex & Sam',
+            team_name='Trivia <Team>',
+            cycle_name='Summer Sprint',
+            start_date='2026-08-24',
+            end_date='2026-09-04',
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.subject, 'You are the trivia master for Summer Sprint')
+        self.assertIn('Team: Trivia <Team>', email.body)
+        self.assertIn('Sprint cycle: Summer Sprint', email.body)
+        self.assertIn('Schedule: 2026-08-24 through 2026-09-04', email.body)
+        self.assertEqual(len(email.alternatives), 1)
+        html, mime_type = email.alternatives[0]
+        self.assertEqual(mime_type, 'text/html')
+        self.assertIn('Alex &amp; Sam', html)
+        self.assertIn('Trivia &lt;Team&gt;', html)
 
 
 @override_settings(
