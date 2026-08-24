@@ -35,6 +35,10 @@ class TriviaGeneratorTests(SimpleTestCase):
             with self.assertRaisesMessage(RuntimeError, 'GROQ_API_KEY is required'):
                 TriviaGenerator().generate('Canada')
 
+    def test_rejects_unsupported_difficulty(self):
+        with self.assertRaisesMessage(ValueError, 'Unsupported trivia difficulty'):
+            TriviaGenerator().generate('Canada', difficulty='impossible')
+
     @patch('openai.OpenAI')
     def test_uses_groq_and_retries_invalid_domain_output_once(self, openai_client):
         invalid = self.response(
@@ -53,11 +57,14 @@ class TriviaGeneratorTests(SimpleTestCase):
             'GROQ_API_KEY': 'test-key',
             'GROQ_MODEL': 'openai/gpt-oss-20b',
         }):
-            question = TriviaGenerator().generate('Canada')
+            question = TriviaGenerator().generate('Canada', difficulty='hard')
 
         openai_client.assert_called_once_with(api_key='test-key', base_url=GROQ_BASE_URL)
         self.assertEqual(client.chat.completions.create.call_count, 2)
         self.assertEqual(question.correct_choice, 'Ottawa')
+        prompt = client.chat.completions.create.call_args.kwargs['messages'][1]['content']
+        self.assertIn('hard-difficulty', prompt)
+        self.assertIn('experienced trivia players', prompt)
 
 
 @override_settings(
@@ -436,10 +443,10 @@ class TeamTriviaWorkflowTests(APITestCase):
         with patch('trivia_app.api.trivia.TriviaGenerator.generate', return_value=generated) as generate:
             response = self.client.post(
                 f'/api/master-cycles/{cycle_id}/generate-trivia/',
-                {'topic': 'Science'},
+                {'topic': 'Science', 'difficulty': 'hard'},
                 format='json',
             )
-        generate.assert_called_once_with('Science')
+        generate.assert_called_once_with('Science', difficulty='hard')
         self.assertEqual(response.data['topic'], 'Science')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['status'], TriviaSession.Status.LIVE)
@@ -450,6 +457,15 @@ class TeamTriviaWorkflowTests(APITestCase):
 
         session = TriviaSession.objects.get(pk=response.data['id'])
         question_id = session.questions.get().id
+
+        invalid_difficulty_response = self.client.post(
+            f'/api/master-cycles/{cycle_id}/generate-trivia/',
+            {'topic': 'Science', 'difficulty': 'expert'},
+            format='json',
+        )
+        self.assertEqual(invalid_difficulty_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('difficulty', invalid_difficulty_response.data)
+
         self.assertEqual(self.client.post(f'/api/trivia-sessions/{session.id}/answers/', {
             'trivia_question': question_id,
             'selected_choice': 'Ottawa',

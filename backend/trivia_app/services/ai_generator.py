@@ -6,6 +6,12 @@ from dataclasses import dataclass
 GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 DEFAULT_GROQ_MODEL = 'openai/gpt-oss-20b'
 
+DIFFICULTY_GUIDANCE = {
+    'easy': 'Use widely known facts and straightforward wording suitable for casual players.',
+    'medium': 'Use moderately challenging facts suitable for a general audience.',
+    'hard': 'Use less obvious facts and plausible distractors suitable for experienced trivia players.',
+}
+
 QUESTION_SCHEMA = {
     'name': 'trivia_question',
     'strict': True,
@@ -37,12 +43,14 @@ class GeneratedQuestion:
 
 
 class TriviaGenerator:
-    def generate(self, topic: str) -> GeneratedQuestion:
+    def generate(self, topic: str, difficulty: str = 'medium') -> GeneratedQuestion:
+        if difficulty not in DIFFICULTY_GUIDANCE:
+            raise ValueError(f'Unsupported trivia difficulty: {difficulty}')
         if not os.getenv('GROQ_API_KEY'):
             raise RuntimeError('GROQ_API_KEY is required for AI trivia generation.')
-        return self._generate_with_groq(topic)
+        return self._generate_with_groq(topic, difficulty)
 
-    def _generate_with_groq(self, topic: str) -> GeneratedQuestion:
+    def _generate_with_groq(self, topic: str, difficulty: str) -> GeneratedQuestion:
         from openai import OpenAI
 
         client = OpenAI(
@@ -50,8 +58,8 @@ class TriviaGenerator:
             base_url=GROQ_BASE_URL,
         )
         prompt = (
-            f'Create exactly one accurate, engaging multiple-choice trivia question about {topic}. '
-            'It must be answerable by a general audience. Provide four distinct choices, identify the '
+            f'Create exactly one accurate, engaging {difficulty}-difficulty multiple-choice trivia question about {topic}. '
+            f'{DIFFICULTY_GUIDANCE[difficulty]} Provide four distinct choices, identify the '
             'correct choice exactly, and briefly explain the answer. Return only the requested JSON.'
         )
 
