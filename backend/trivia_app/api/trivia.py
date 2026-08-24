@@ -19,7 +19,7 @@ from ..serializers import (
     TriviaSessionSerializer,
     UserAnswerSerializer,
 )
-from ..services.ai_generator import TriviaGenerator
+from ..services.ai_generator import DIFFICULTY_GUIDANCE, TriviaGenerator
 from ..services.cycle_finalizer import finalize_expired_cycles
 from ..services.trivia_retention import delete_expired_trivia_questions
 from ..services.trivia_evaluator import evaluate_expired_trivia_sessions
@@ -101,12 +101,18 @@ def master_cycle_generate_trivia(request, pk: int):
     )
     selected_topic = str(request.data.get('topic', '')).strip()
     trivia_topic = selected_topic or scheduled_topic or cycle.topic
+    difficulty = str(request.data.get('difficulty', 'medium')).strip().lower()
+    if difficulty not in DIFFICULTY_GUIDANCE:
+        return Response(
+            {'difficulty': [f"Choose one of: {', '.join(DIFFICULTY_GUIDANCE)}."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     title = request.data.get('title') or f'{trivia_topic} Daily Challenge'
     close_at, close_at_error = requested_close_at(request)
     if close_at_error:
         return close_at_error
     try:
-        question = TriviaGenerator().generate(trivia_topic)
+        question = TriviaGenerator().generate(trivia_topic, difficulty=difficulty)
     except Exception as exc:
         return Response({'detail': f'Trivia generation failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
 

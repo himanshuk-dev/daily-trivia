@@ -67,6 +67,7 @@ export default function App() {
     explanation: '',
     aiTopic: '',
     customTopic: '',
+    difficulty: 'medium',
     closeAt: '',
     questions: [],
   })
@@ -543,7 +544,7 @@ export default function App() {
     }
     setIsGeneratingTrivia(true)
     try {
-      const session = await api.generateTrivia(builder.cycleId, { title: builder.title, topic, close_at: builder.closeAt ? new Date(builder.closeAt).toISOString() : undefined })
+      const session = await api.generateTrivia(builder.cycleId, { title: builder.title, topic, difficulty: builder.difficulty, close_at: builder.closeAt ? new Date(builder.closeAt).toISOString() : undefined })
       setCycles(await api.getMasterCycles())
       setActiveSession(session)
       setBuilder((current) => ({
@@ -556,6 +557,7 @@ export default function App() {
         explanation: '',
         aiTopic: '',
         customTopic: '',
+        difficulty: 'medium',
         closeAt: '',
         questions: [],
       }))

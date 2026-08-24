@@ -49,11 +49,22 @@ export function TriviaBuilder({ builder, cycles, setBuilder, onLoadDraft, onAddQ
           </Grid>
           <TextField fullWidth type="datetime-local" label="Trivia submission closing time (optional)" value={builder.closeAt} onChange={(event) => setBuilder((current) => ({ ...current, closeAt: event.target.value }))} InputLabelProps={{ shrink: true }} helperText="Leave blank to use the configured default answer window of 3 hours." />
           {selectedCycle ? (
-            <TextField select fullWidth label="AI trivia topic (required for AI generation)" value={builder.aiTopic} onChange={(event) => setBuilder((current) => ({ ...current, aiTopic: event.target.value }))}>
-              {scheduledTopic ? <MenuItem value={scheduledTopic}>{scheduledTopic} · Previously scheduled</MenuItem> : null}
-              {suggestedTopics.filter((topic) => topic !== scheduledTopic).map((topic) => <MenuItem key={topic} value={topic}>{topic}</MenuItem>)}
-              <MenuItem value={customTopicValue}>Custom topic…</MenuItem>
-            </TextField>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={8}>
+                <TextField select fullWidth label="AI trivia topic (required for AI generation)" value={builder.aiTopic} onChange={(event) => setBuilder((current) => ({ ...current, aiTopic: event.target.value }))}>
+                  {scheduledTopic ? <MenuItem value={scheduledTopic}>{scheduledTopic} · Previously scheduled</MenuItem> : null}
+                  {suggestedTopics.filter((topic) => topic !== scheduledTopic).map((topic) => <MenuItem key={topic} value={topic}>{topic}</MenuItem>)}
+                  <MenuItem value={customTopicValue}>Custom topic…</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField select fullWidth label="AI question difficulty" value={builder.difficulty} onChange={(event) => setBuilder((current) => ({ ...current, difficulty: event.target.value }))}>
+                  <MenuItem value="easy">Easy</MenuItem>
+                  <MenuItem value="medium">Medium</MenuItem>
+                  <MenuItem value="hard">Hard</MenuItem>
+                </TextField>
+              </Grid>
+            </Grid>
           ) : null}
           {builder.aiTopic === customTopicValue ? <TextField fullWidth label="Custom AI topic" value={builder.customTopic} onChange={(event) => setBuilder((current) => ({ ...current, customTopic: event.target.value }))} placeholder="For example: Canadian federal public service history" /> : null}
           <Divider />
