@@ -79,11 +79,11 @@ class MasterCycleSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        start_date = attrs.get('start_date')
-        end_date = attrs.get('end_date')
+        start_date = attrs.get('start_date', getattr(self.instance, 'start_date', None))
+        end_date = attrs.get('end_date', getattr(self.instance, 'end_date', None))
         if start_date and end_date and end_date < start_date:
             raise serializers.ValidationError({'end_date': 'End date must be on or after the start date.'})
-        daily_topics = attrs.get('daily_topics', [])
+        daily_topics = attrs.get('daily_topics', getattr(self.instance, 'daily_topics', []))
         seen_dates = set()
         for item in daily_topics:
             if not isinstance(item, dict) or not item.get('date') or not str(item.get('topic', '')).strip():
@@ -120,6 +120,12 @@ class MasterCycleSerializer(serializers.ModelSerializer):
         master_username = validated_data.pop('master_username')
         master = User.objects.get(username=master_username)
         return MasterCycle.objects.create(master=master, **validated_data)
+
+    def update(self, instance, validated_data):
+        master_username = validated_data.pop('master_username', None)
+        if master_username:
+            instance.master = User.objects.get(username=master_username)
+        return super().update(instance, validated_data)
 
 
 class TeamMembershipSerializer(serializers.ModelSerializer):
