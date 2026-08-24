@@ -21,6 +21,7 @@ from .trivia import (
     trivia_session_answers,
     trivia_session_evaluate,
     trivia_session_publish,
+    trivia_session_regenerate,
     trivia_session_retrieve,
     trivia_session_update,
 )

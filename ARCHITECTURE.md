@@ -266,7 +266,7 @@ stateDiagram-v2
 A team administrator creates a `MasterCycle` and assigns an approved team member as master. The master can then:
 
 - Create a manual session with validated questions.
-- Ask the AI service to create one question, publish it immediately, and set its deadline from `TRIVIA_ANSWER_WINDOW_HOURS`.
+- Ask the AI service to create one draft question that the master can review, edit, or regenerate before publication. The answer deadline is set from `TRIVIA_ANSWER_WINDOW_HOURS` when published.
 - Reload and replace the questions of an existing draft.
 
 ### Publication
@@ -333,6 +333,7 @@ All routes are prefixed with `/api/`. Except for requesting and verifying an ema
 | --- | --- | --- |
 | `GET`, `POST` | `/master-cycles/` | List accessible cycles or assign a master |
 | `POST` | `/master-cycles/{id}/generate-trivia/` | Generate an AI/local draft |
+| `POST` | `/trivia-sessions/{id}/regenerate/` | Replace an AI-generated draft question |
 | `POST` | `/master-cycles/{id}/trivia-sessions/` | Create a manual draft |
 | `GET` | `/trivia-sessions/{id}/` | Retrieve role-appropriate session data |
 | `PUT` | `/trivia-sessions/{id}/edit/` | Replace a draft's title/questions |

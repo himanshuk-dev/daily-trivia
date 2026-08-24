@@ -201,16 +201,13 @@ def master_cycle_generate_trivia(request, pk: int):
     except Exception as exc:
         return Response({'detail': f'Trivia generation failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
 
-    publish_at = timezone.now()
     with transaction.atomic():
         session = TriviaSession.objects.create(
             master_cycle=cycle,
             title=title,
             topic=trivia_topic,
-            status=TriviaSession.Status.LIVE,
             generation_method=TriviaSession.GenerationMethod.AI,
-            publish_at=publish_at,
-            close_at=close_at or publish_at + timedelta(hours=settings.TRIVIA_ANSWER_WINDOW_HOURS),
+            close_at=close_at,
         )
         TriviaQuestion.objects.create(
             trivia_session=session,
@@ -220,9 +217,42 @@ def master_cycle_generate_trivia(request, pk: int):
             explanation=question.explanation,
             sort_order=1,
         )
-        if cycle.team:
-            notify_trivia_published(cycle.team, session, request.user)
     return Response(TriviaSessionSerializer(session).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def trivia_session_regenerate(request, pk: int):
+    session = get_object_or_404(TriviaSession.objects.select_related('master_cycle'), pk=pk)
+    if not can_manage_cycle(request.user, session.master_cycle):
+        return Response({'detail': "Only this cycle's master can regenerate trivia."}, status=status.HTTP_403_FORBIDDEN)
+    if session.status != TriviaSession.Status.DRAFT or session.generation_method != TriviaSession.GenerationMethod.AI:
+        return Response({'detail': 'Only AI-generated draft trivia can be regenerated.'}, status=status.HTTP_409_CONFLICT)
+    cycle = session.master_cycle
+    if cycle.status != MasterCycle.Status.ACTIVE or not cycle.start_date <= timezone.localdate() <= cycle.end_date:
+        return Response({'detail': 'Trivia can only be regenerated during an active cycle.'}, status=status.HTTP_409_CONFLICT)
+    difficulty = str(request.data.get('difficulty', 'medium')).strip().lower()
+    if difficulty not in DIFFICULTY_GUIDANCE:
+        return Response(
+            {'difficulty': [f"Choose one of: {', '.join(DIFFICULTY_GUIDANCE)}."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        question = TriviaGenerator().generate(session.topic, difficulty=difficulty)
+    except Exception as exc:
+        return Response({'detail': f'Trivia generation failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    with transaction.atomic():
+        session.questions.all().delete()
+        TriviaQuestion.objects.create(
+            trivia_session=session,
+            prompt=question.prompt,
+            choices=question.choices,
+            correct_choice=question.correct_choice,
+            explanation=question.explanation,
+            sort_order=1,
+        )
+    return Response(TriviaSessionSerializer(session).data)
 
 
 @api_view(['POST'])
@@ -346,6 +376,8 @@ def trivia_session_publish(request, pk: int):
     session = get_object_or_404(TriviaSession, pk=pk)
     if not can_manage_cycle(request.user, session.master_cycle):
         return Response({'detail': "Only this cycle's master can publish trivia."}, status=status.HTTP_403_FORBIDDEN)
+    if session.status != TriviaSession.Status.DRAFT:
+        return Response({'detail': 'Only draft trivia can be published.'}, status=status.HTTP_409_CONFLICT)
     cycle = session.master_cycle
     if cycle.status != MasterCycle.Status.ACTIVE or not cycle.start_date <= timezone.localdate() <= cycle.end_date:
         return Response({'detail': 'Trivia can only be published during an active cycle.'}, status=status.HTTP_409_CONFLICT)

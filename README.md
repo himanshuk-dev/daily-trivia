@@ -157,7 +157,7 @@ Change this value in `.env` if a different account should receive platform-admin
 
 ## AI trivia generation
 
-AI generation requires a Groq API key. The master selects a cycle whose topic has already been set, and GPT-OSS 20B creates exactly one multiple-choice question. The question is published immediately and remains open for the configured answer window:
+AI generation requires a Groq API key. The master selects a cycle whose topic has already been set, and GPT-OSS 20B creates exactly one multiple-choice draft. The master can review, edit, or regenerate the question before explicitly publishing it. The configured answer window begins at publication:
 
 ```dotenv
 GROQ_API_KEY=
@@ -227,7 +227,7 @@ The complete template is in [.env.example](.env.example). Important settings inc
 4. Members join using the team's invite code.
    Platform and team administrators can also add an existing active user directly as an approved member or team administrator.
 5. A team administrator assigns themselves or another approved member as master for a custom-length cycle without preselecting daily topics.
-6. Each day, the master chooses a suggested topic from a dropdown and asks AI to generate one question; it is published immediately.
+6. Each day, the master chooses a suggested topic and asks AI to generate one draft question, then reviews, edits, regenerates, or publishes it.
 7. Approved team members submit their answers during the configured answer window.
    A master cannot answer a trivia session they created manually, but can answer AI-generated trivia.
 8. After the deadline, the master evaluates the session.

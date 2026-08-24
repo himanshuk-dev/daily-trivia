@@ -449,14 +449,41 @@ class TeamTriviaWorkflowTests(APITestCase):
         generate.assert_called_once_with('Science', difficulty='hard')
         self.assertEqual(response.data['topic'], 'Science')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['status'], TriviaSession.Status.LIVE)
+        self.assertEqual(response.data['status'], TriviaSession.Status.DRAFT)
         self.assertEqual(response.data['generation_method'], TriviaSession.GenerationMethod.AI)
         self.assertEqual(len(response.data['questions']), 1)
-        self.assertIsNotNone(response.data['publish_at'])
-        self.assertIsNotNone(response.data['close_at'])
+        self.assertIsNone(response.data['publish_at'])
+        self.assertIsNone(response.data['close_at'])
 
         session = TriviaSession.objects.get(pk=response.data['id'])
-        question_id = session.questions.get().id
+        self.assertFalse(Notification.objects.filter(
+            user=self.admin,
+            team_id=team_id,
+            message=f'New trivia is live: {session.title}',
+        ).exists())
+
+        regenerated = GeneratedQuestion(
+            prompt='Which element has the chemical symbol O?',
+            choices=['Gold', 'Oxygen', 'Osmium', 'Silver'],
+            correct_choice='Oxygen',
+            explanation='O is the chemical symbol for oxygen.',
+        )
+        self.authenticate(direct_member)
+        self.assertEqual(
+            self.client.post(f'/api/trivia-sessions/{session.id}/regenerate/', format='json').status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.authenticate(team_admin)
+        with patch('trivia_app.api.trivia.TriviaGenerator.generate', return_value=regenerated) as regenerate:
+            regenerate_response = self.client.post(
+                f'/api/trivia-sessions/{session.id}/regenerate/',
+                {'difficulty': 'easy'},
+                format='json',
+            )
+        self.assertEqual(regenerate_response.status_code, status.HTTP_200_OK)
+        regenerate.assert_called_once_with('Science', difficulty='easy')
+        self.assertEqual(regenerate_response.data['questions'][0]['prompt'], regenerated.prompt)
+        self.assertEqual(session.questions.count(), 1)
 
         invalid_difficulty_response = self.client.post(
             f'/api/master-cycles/{cycle_id}/generate-trivia/',
@@ -466,9 +493,17 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(invalid_difficulty_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('difficulty', invalid_difficulty_response.data)
 
+        publish_response = self.client.post(f'/api/trivia-sessions/{session.id}/publish/')
+        self.assertEqual(publish_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self.client.post(f'/api/trivia-sessions/{session.id}/regenerate/', format='json').status_code,
+            status.HTTP_409_CONFLICT,
+        )
+        session.refresh_from_db()
+        question_id = session.questions.get().id
         self.assertEqual(self.client.post(f'/api/trivia-sessions/{session.id}/answers/', {
             'trivia_question': question_id,
-            'selected_choice': 'Ottawa',
+            'selected_choice': 'Oxygen',
         }, format='json').status_code, status.HTTP_201_CREATED)
         self.assertTrue(Notification.objects.filter(
             user=self.admin,
@@ -493,7 +528,7 @@ class TeamTriviaWorkflowTests(APITestCase):
             'selected_choice': 'Ottawa',
         }, format='json').status_code, status.HTTP_409_CONFLICT)
         response = self.client.get(f'/api/trivia-sessions/{session.id}/')
-        self.assertEqual(response.data['questions'][0]['correct_choice'], 'Ottawa')
+        self.assertEqual(response.data['questions'][0]['correct_choice'], 'Oxygen')
         self.assertIsNone(response.data['questions'][0]['selected_choice'])
         self.assertFalse(response.data['questions'][0]['is_correct'])
 

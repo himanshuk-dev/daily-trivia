@@ -22,6 +22,7 @@ from .api import (
     trivia_session_answers,
     trivia_session_evaluate,
     trivia_session_publish,
+    trivia_session_regenerate,
     trivia_session_retrieve,
     trivia_session_update,
     user_delete,
@@ -55,6 +56,7 @@ urlpatterns = [
     path('trivia-sessions/<int:pk>/', trivia_session_retrieve, name='trivia-session-retrieve'),
     path('trivia-sessions/<int:pk>/edit/', trivia_session_update, name='trivia-session-update'),
     path('trivia-sessions/<int:pk>/publish/', trivia_session_publish, name='trivia-session-publish'),
+    path('trivia-sessions/<int:pk>/regenerate/', trivia_session_regenerate, name='trivia-session-regenerate'),
     path('trivia-sessions/<int:pk>/evaluate/', trivia_session_evaluate, name='trivia-session-evaluate'),
     path('trivia-sessions/<int:pk>/answers/', trivia_session_answers, name='trivia-session-answers'),
 ]
