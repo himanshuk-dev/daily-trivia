@@ -70,6 +70,8 @@ export const api = {
   getTeamLeaderboard: (teamId) => request(`/leaderboard/?team=${teamId}`),
   getMasterCycles: () => request('/master-cycles/'),
   createMasterCycle: (payload) => request('/master-cycles/', { method: 'POST', body: JSON.stringify(payload) }),
+  updateMasterCycle: (cycleId, payload) => request(`/master-cycles/${cycleId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteMasterCycle: (cycleId) => request(`/master-cycles/${cycleId}/`, { method: 'DELETE' }),
   generateTrivia: (cycleId, payload) => request(`/master-cycles/${cycleId}/generate-trivia/`, { method: 'POST', body: JSON.stringify(payload) }),
   createTrivia: (cycleId, payload) => request(`/master-cycles/${cycleId}/trivia-sessions/`, { method: 'POST', body: JSON.stringify(payload) }),
   updateTrivia: (sessionId, payload) => request(`/trivia-sessions/${sessionId}/edit/`, { method: 'PUT', body: JSON.stringify(payload) }),

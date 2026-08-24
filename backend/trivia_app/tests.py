@@ -207,6 +207,73 @@ class TeamTriviaWorkflowTests(APITestCase):
         token, _ = Token.objects.get_or_create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
 
+    def test_team_and_platform_admins_can_edit_and_delete_master_cycles(self):
+        team_admin = User.objects.create_user(username='team-admin', email='team-admin@example.com')
+        team = Team.objects.create(name='Cycle Team', slug='cycle-team', created_by=self.admin)
+        TeamMembership.objects.create(
+            team=team,
+            user=team_admin,
+            role=TeamMembership.Role.TEAM_ADMIN,
+            status=TeamMembership.Status.APPROVED,
+        )
+        cycle = MasterCycle.objects.create(
+            team=team,
+            master=self.master,
+            topic='Original cycle',
+            start_date='2026-08-24',
+            end_date='2026-09-04',
+            status=MasterCycle.Status.ACTIVE,
+        )
+
+        self.authenticate(self.player)
+        response = self.client.patch(
+            f'/api/master-cycles/{cycle.id}/', {'topic': 'Unauthorized'}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.authenticate(team_admin)
+        response = self.client.patch(f'/api/master-cycles/{cycle.id}/', {
+            'master_username': team_admin.username,
+            'topic': 'Renamed cycle',
+            'start_date': '2026-08-25',
+            'end_date': '2026-09-05',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['topic'], 'Renamed cycle')
+        self.assertEqual(response.data['master_name'], team_admin.username)
+        self.assertEqual(response.data['start_date'], '2026-08-25')
+        self.assertEqual(response.data['end_date'], '2026-09-05')
+
+        response = self.client.patch(
+            f'/api/master-cycles/{cycle.id}/', {'master_username': self.player.username}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('master_username', response.data)
+
+        response = self.client.patch(
+            f'/api/master-cycles/{cycle.id}/', {'end_date': '2026-08-20'}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('end_date', response.data)
+
+        cycle.status = MasterCycle.Status.CLOSED
+        cycle.save(update_fields=['status'])
+        response = self.client.patch(
+            f'/api/master-cycles/{cycle.id}/', {'topic': 'Closed cycle edit'}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            self.client.delete(f'/api/master-cycles/{cycle.id}/').status_code,
+            status.HTTP_409_CONFLICT,
+        )
+
+        cycle.status = MasterCycle.Status.ACTIVE
+        cycle.save(update_fields=['status'])
+        self.authenticate(self.admin)
+        response = self.client.delete(f'/api/master-cycles/{cycle.id}/')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(MasterCycle.objects.filter(pk=cycle.id).exists())
+
     def test_platform_admin_can_edit_and_delete_team(self):
         self.authenticate(self.admin)
         response = self.client.post('/api/teams/', {

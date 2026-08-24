@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Alert, Box, Button, Card, CardContent, Chip, Grid, List, ListItem, ListItemText, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material'
 
 export function TeamAdministration({
@@ -18,9 +19,32 @@ export function TeamAdministration({
   onEditTeam,
   onToggleTeamApproval,
   onDeleteTeam,
+  onUpdateCycle,
+  onDeleteCycle,
 }) {
+  const [editingCycleId, setEditingCycleId] = useState(null)
+  const [cycleDraft, setCycleDraft] = useState(null)
   if (!selectedTeam) return null
   const hasTeamAdmin = members.some((membership) => membership.role === 'team_admin')
+
+  const beginCycleEdit = (cycle) => {
+    setEditingCycleId(cycle.id)
+    setCycleDraft({
+      master_username: cycle.master_name,
+      topic: cycle.topic,
+      start_date: cycle.start_date,
+      end_date: cycle.end_date,
+    })
+  }
+
+  const saveCycleEdit = async () => {
+    if (!cycleDraft?.topic.trim() || !cycleDraft.start_date || !cycleDraft.end_date) return
+    const saved = await onUpdateCycle(editingCycleId, { ...cycleDraft, topic: cycleDraft.topic.trim() })
+    if (saved) {
+      setEditingCycleId(null)
+      setCycleDraft(null)
+    }
+  }
 
   return (
     <Grid item xs={12}>
@@ -84,12 +108,36 @@ export function TeamAdministration({
             {cycles.map((cycle) => (
               <Grid item xs={12} md={6} key={cycle.id}>
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, height: '100%' }}>
+                  {editingCycleId === cycle.id ? (
+                    <Stack spacing={1.5}>
+                      <TextField select fullWidth size="small" label="Trivia master" value={cycleDraft.master_username} onChange={(event) => setCycleDraft((current) => ({ ...current, master_username: event.target.value }))}>
+                        {members.filter((membership) => membership.status === 'approved').map((membership) => (
+                          <MenuItem key={membership.user} value={membership.username}>{membership.username}</MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField fullWidth size="small" label="Cycle name" value={cycleDraft.topic} onChange={(event) => setCycleDraft((current) => ({ ...current, topic: event.target.value }))} />
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                        <TextField fullWidth size="small" type="date" label="Start date" InputLabelProps={{ shrink: true }} value={cycleDraft.start_date} onChange={(event) => setCycleDraft((current) => ({ ...current, start_date: event.target.value }))} />
+                        <TextField fullWidth size="small" type="date" label="End date" InputLabelProps={{ shrink: true }} inputProps={{ min: cycleDraft.start_date }} value={cycleDraft.end_date} onChange={(event) => setCycleDraft((current) => ({ ...current, end_date: event.target.value }))} />
+                      </Stack>
+                      <Stack direction="row" spacing={1}>
+                        <Button size="small" variant="contained" onClick={saveCycleEdit} disabled={!cycleDraft.master_username || !cycleDraft.topic.trim() || !cycleDraft.start_date || !cycleDraft.end_date || cycleDraft.end_date < cycleDraft.start_date}>Save</Button>
+                        <Button size="small" onClick={() => { setEditingCycleId(null); setCycleDraft(null) }}>Cancel</Button>
+                      </Stack>
+                    </Stack>
+                  ) : (<>
                   <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
                     <Box><Typography variant="caption" color="text.secondary">Master</Typography><Typography fontWeight={900}>{cycle.master_name}</Typography></Box>
                     <Chip size="small" label={cycle.status} color={cycle.status === 'active' ? 'success' : 'default'} />
                   </Stack>
                   <Typography sx={{ mt: 1 }}><strong>Topic:</strong> {cycle.topic}</Typography>
                   <Typography variant="body2" color="text.secondary">{cycle.start_date} to {cycle.end_date} · {cycle.trivia_sessions?.length ?? 0} sessions</Typography>
+                  {cycle.status === 'active' ? (
+                    <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                      <Button size="small" onClick={() => beginCycleEdit(cycle)}>Edit cycle</Button>
+                      <Button size="small" color="error" onClick={() => onDeleteCycle(cycle)}>Delete cycle</Button>
+                    </Stack>
+                  ) : null}
                   {cycle.sprint_leaderboard?.length ? (
                     <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1.5 }}>
                       {cycle.sprint_leaderboard.map((entry, index) => (
@@ -97,6 +145,7 @@ export function TeamAdministration({
                       ))}
                     </Stack>
                   ) : <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Cycle leaderboard begins after trophies are awarded.</Typography>}
+                  </>)}
                 </Paper>
               </Grid>
             ))}
