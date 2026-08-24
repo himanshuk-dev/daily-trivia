@@ -340,9 +340,17 @@ export default function App() {
 
   const handleUpdateMasterCycle = async (cycleId, payload) => {
     try {
+      const original = cycles.find((cycle) => cycle.id === cycleId)
       const updated = await api.updateMasterCycle(cycleId, payload)
       setCycles((current) => current.map((cycle) => (cycle.id === updated.id ? updated : cycle)))
-      setMessage(`Updated the ${updated.topic} cycle.`)
+      const changes = []
+      if (original?.topic !== updated.topic) changes.push(`name from “${original.topic}” to “${updated.topic}”`)
+      if (original?.master_name !== updated.master_name) changes.push(`master from ${original.master_name} to ${updated.master_name}`)
+      if (original?.start_date !== updated.start_date) changes.push(`start date from ${original.start_date} to ${updated.start_date}`)
+      if (original?.end_date !== updated.end_date) changes.push(`end date from ${original.end_date} to ${updated.end_date}`)
+      setMessage(changes.length
+        ? `Updated ${updated.topic}: ${changes.join('; ')}.`
+        : `No changes were made to ${updated.topic}.`)
       return true
     } catch (error) {
       setMessage(error.message)
