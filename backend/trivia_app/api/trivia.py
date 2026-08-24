@@ -39,6 +39,19 @@ def notify_trivia_published(team: Team, session: TriviaSession, publisher: User)
     ])
 
 
+def notify_cycle_changed(team: Team, actor: User, message: str) -> None:
+    recipient_ids = set(TeamMembership.objects.filter(
+        team=team,
+        status=TeamMembership.Status.APPROVED,
+    ).values_list('user_id', flat=True))
+    recipient_ids.update(User.objects.filter(is_staff=True, is_active=True).values_list('id', flat=True))
+    recipient_ids.discard(actor.id)
+    Notification.objects.bulk_create([
+        Notification(user_id=user_id, team=team, message=message[:255])
+        for user_id in recipient_ids
+    ])
+
+
 def requested_close_at(request):
     raw_close_at = request.data.get('close_at')
     if not raw_close_at:
@@ -83,6 +96,11 @@ def master_cycle_list_create(request):
     if not master or not is_approved_member(master, team):
         return Response({'master_username': ['The master must be an approved team member.']}, status=status.HTTP_400_BAD_REQUEST)
     cycle = serializer.save()
+    notify_cycle_changed(
+        team,
+        request.user,
+        f'New sprint cycle: {cycle.topic} · Master: {cycle.master.username} · {cycle.start_date} to {cycle.end_date}',
+    )
     return Response(MasterCycleSerializer(cycle).data, status=status.HTTP_201_CREATED)
 
 
@@ -115,7 +133,24 @@ def master_cycle_manage(request, pk: int):
                 {'master_username': ['The master must be an approved team member.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+    changes = []
+    new_topic = serializer.validated_data.get('topic', cycle.topic)
+    if new_topic != cycle.topic:
+        changes.append(f'name: {cycle.topic} → {new_topic}')
+    if master_username and master_username != cycle.master.username:
+        changes.append(f'master: {cycle.master.username} → {master_username}')
+    for field, label in [('start_date', 'start date'), ('end_date', 'end date')]:
+        new_value = serializer.validated_data.get(field, getattr(cycle, field))
+        if new_value != getattr(cycle, field):
+            changes.append(f'{label}: {getattr(cycle, field)} → {new_value}')
+
     serializer.save()
+    if changes:
+        notify_cycle_changed(
+            cycle.team,
+            request.user,
+            f'Sprint cycle updated ({cycle.topic}): {"; ".join(changes)}',
+        )
     return Response(MasterCycleSerializer(cycle).data)
 
 

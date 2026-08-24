@@ -216,14 +216,33 @@ class TeamTriviaWorkflowTests(APITestCase):
             role=TeamMembership.Role.TEAM_ADMIN,
             status=TeamMembership.Status.APPROVED,
         )
-        cycle = MasterCycle.objects.create(
+        for user in [self.master, self.player]:
+            TeamMembership.objects.create(
+                team=team,
+                user=user,
+                status=TeamMembership.Status.APPROVED,
+            )
+
+        self.authenticate(team_admin)
+        response = self.client.post('/api/master-cycles/', {
+            'team': team.id,
+            'master_username': self.master.username,
+            'topic': 'Original cycle',
+            'start_date': '2026-08-24',
+            'end_date': '2026-09-04',
+            'status': MasterCycle.Status.ACTIVE,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        cycle = MasterCycle.objects.get(pk=response.data['id'])
+        self.assertTrue(Notification.objects.filter(
+            user=self.player,
             team=team,
-            master=self.master,
-            topic='Original cycle',
-            start_date='2026-08-24',
-            end_date='2026-09-04',
-            status=MasterCycle.Status.ACTIVE,
-        )
+            message='New sprint cycle: Original cycle · Master: master · 2026-08-24 to 2026-09-04',
+        ).exists())
+        self.assertFalse(Notification.objects.filter(
+            user=team_admin,
+            message__startswith='New sprint cycle:',
+        ).exists())
 
         self.authenticate(self.player)
         response = self.client.patch(
@@ -243,6 +262,15 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(response.data['master_name'], team_admin.username)
         self.assertEqual(response.data['start_date'], '2026-08-25')
         self.assertEqual(response.data['end_date'], '2026-09-05')
+        update_notification = Notification.objects.filter(
+            user=self.player,
+            team=team,
+            message__startswith='Sprint cycle updated (Renamed cycle):',
+        ).get()
+        self.assertIn('name: Original cycle → Renamed cycle', update_notification.message)
+        self.assertIn('master: master → team-admin', update_notification.message)
+        self.assertIn('start date: 2026-08-24 → 2026-08-25', update_notification.message)
+        self.assertIn('end date: 2026-09-04 → 2026-09-05', update_notification.message)
 
         response = self.client.patch(
             f'/api/master-cycles/{cycle.id}/', {'master_username': self.player.username}, format='json',
