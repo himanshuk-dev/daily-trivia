@@ -401,12 +401,9 @@ def trivia_session_answers(request, pk: int):
         return Response({'detail': 'The answer window has closed.'}, status=status.HTTP_409_CONFLICT)
     if session.master_cycle.team and not is_approved_member(request.user, session.master_cycle.team):
         return Response({'detail': 'You are not an approved member of this team.'}, status=status.HTTP_403_FORBIDDEN)
-    if (
-        session.generation_method == TriviaSession.GenerationMethod.MANUAL
-        and session.master_cycle.master_id == request.user.id
-    ):
+    if session.master_cycle.master_id == request.user.id:
         return Response(
-            {'detail': 'The Trivia Master cannot answer trivia they created manually.'},
+            {'detail': 'The Trivia Master cannot answer trivia from their assigned cycle.'},
             status=status.HTTP_403_FORBIDDEN,
         )
     serializer = UserAnswerSerializer(data={

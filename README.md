@@ -229,7 +229,7 @@ The complete template is in [.env.example](.env.example). Important settings inc
 5. A team administrator assigns themselves or another approved member as master for a custom-length cycle without preselecting daily topics.
 6. Each day, the master chooses a suggested topic and asks AI to generate one draft question, then reviews, edits, regenerates, or publishes it.
 7. Approved team members submit their answers during the configured answer window.
-   A master cannot answer a trivia session they created manually, but can answer AI-generated trivia.
+   The assigned Trivia Master cannot answer trivia in their cycle because they can review correct answers and participant responses.
 8. After the deadline, the master evaluates the session.
 9. Correct answers produce trophies.
 10. Correct participants receive trophies reflected in the cycle leaderboard.

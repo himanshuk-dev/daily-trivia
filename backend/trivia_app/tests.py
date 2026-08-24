@@ -504,6 +504,11 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.assertEqual(self.client.post(f'/api/trivia-sessions/{session.id}/answers/', {
             'trivia_question': question_id,
             'selected_choice': 'Oxygen',
+        }, format='json').status_code, status.HTTP_403_FORBIDDEN)
+        self.authenticate(direct_member)
+        self.assertEqual(self.client.post(f'/api/trivia-sessions/{session.id}/answers/', {
+            'trivia_question': question_id,
+            'selected_choice': 'Oxygen',
         }, format='json').status_code, status.HTTP_201_CREATED)
         self.assertTrue(Notification.objects.filter(
             user=self.admin,
@@ -515,6 +520,7 @@ class TeamTriviaWorkflowTests(APITestCase):
             timedelta(minutes=15).total_seconds(),
             delta=1,
         )
+        self.authenticate(team_admin)
         self.assertEqual(
             self.client.post(f'/api/trivia-sessions/{session.id}/evaluate/').status_code,
             status.HTTP_409_CONFLICT,
@@ -723,12 +729,13 @@ class TeamTriviaWorkflowTests(APITestCase):
         self.authenticate(self.master)
         response = self.client.get(f'/api/trivia-sessions/{session_id}/')
         self.assertFalse(response.data['has_submitted'])
+        self.assertEqual(response.data['submissions'][0]['answers'][0]['selected_choice'], 'Mars')
         response = self.client.post(f'/api/trivia-sessions/{session_id}/answers/', {
             'trivia_question': question_id,
             'selected_choice': 'Venus',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(response.data['detail'], 'The Trivia Master cannot answer trivia they created manually.')
+        self.assertEqual(response.data['detail'], 'The Trivia Master cannot answer trivia from their assigned cycle.')
         response = self.client.get(f'/api/trivia-sessions/{session_id}/')
         self.assertFalse(response.data['has_submitted'])
         response = self.client.post(f'/api/trivia-sessions/{session_id}/evaluate/')

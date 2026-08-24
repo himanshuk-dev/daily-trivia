@@ -129,7 +129,7 @@ The Groq request uses strict JSON Schema output. The service additionally valida
 
 Correct choices and explanations are hidden from ordinary members while the answer window is open. After `close_at`, the session endpoint exposes those results together with only the requesting member's own submitted answer, whether or not trophy evaluation has run yet.
 
-For a cycle master, the session response also includes a submission summary containing participant identity, answer count, and latest submission time. It does not expose selected choices through that summary.
+For a cycle master, the session response includes participant identity, selected choices, answer count, and submission time while trivia is live. Because the master can review correct answers and participant responses, the master cannot submit answers to trivia in their assigned cycle.
 
 Platform administrators have a staff-only aggregate overview that groups every team with its memberships, trivia sessions, submission participants, and team leaderboard. This endpoint exposes participation metadata but not participants' selected choices.
 

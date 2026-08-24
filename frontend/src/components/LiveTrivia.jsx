@@ -8,9 +8,7 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
   const answersClosed = Boolean(session && (
     session.status === 'closed' || (session.close_at && new Date(session.close_at) <= new Date())
   ))
-  const masterCannotAnswer = Boolean(
-    session?.generation_method === 'manual' && isCycleMaster,
-  )
+  const masterCannotAnswer = Boolean(session && isCycleMaster)
 
   return (
     <Grid item xs={12}>
@@ -72,7 +70,7 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
               </Alert>
             ) : null}
             {masterCannotAnswer && !answersClosed ? (
-              <Alert severity="info">You created this trivia manually, so you can manage it but cannot submit an answer.</Alert>
+              <Alert severity="info">As this cycle’s Trivia Master, you can review questions and participant responses but cannot submit an answer.</Alert>
             ) : null}
             {questions.map((question, index) => (
               <Paper key={question.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
@@ -92,7 +90,7 @@ export function LiveTrivia({ session, sessions, questions, choices, setChoices, 
             ))}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <Button variant="contained" onClick={onSubmit} disabled={session.status !== 'live' || answersClosed || session.has_submitted || masterCannotAnswer || isSubmitting}>
-                {isSubmitting ? 'Submitting…' : session.has_submitted ? 'Answer submitted' : masterCannotAnswer ? 'Master cannot answer manual trivia' : 'Submit answer'}
+                {isSubmitting ? 'Submitting…' : session.has_submitted ? 'Answer submitted' : masterCannotAnswer ? 'Trivia Master cannot answer' : 'Submit answer'}
               </Button>
               {canManage && session.status === 'draft' ? <Button variant="outlined" onClick={onPublish}>Publish session</Button> : null}
               {canManage && session.status === 'live' ? <Button variant="outlined" onClick={onEvaluate}>Close and evaluate</Button> : null}
