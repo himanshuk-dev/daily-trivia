@@ -134,6 +134,7 @@ EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
 BREVO_API_KEY = os.getenv('BREVO_API_KEY', '')
 BREVO_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL', 'noreply@daily-trivia.local')
 BREVO_SENDER_NAME = os.getenv('BREVO_SENDER_NAME', 'Daily Trivia')
+PUBLIC_APP_URL = os.getenv('PUBLIC_APP_URL', 'https://himanshuk-dev.github.io/daily-trivia/').strip()
 
 LOGIN_CODE_EXPIRY_MINUTES = int(os.getenv('LOGIN_CODE_EXPIRY_MINUTES', '10'))
 ALLOWED_EMAIL_DOMAINS = {

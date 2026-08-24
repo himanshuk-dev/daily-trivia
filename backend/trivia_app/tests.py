@@ -96,6 +96,7 @@ class BrevoEmailDeliveryTests(SimpleTestCase):
     EMAIL_DELIVERY_PROVIDER='smtp',
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
     DEFAULT_FROM_EMAIL='noreply@example.com',
+    PUBLIC_APP_URL='https://himanshuk-dev.github.io/daily-trivia/',
 )
 class MasterCycleEmailTests(SimpleTestCase):
     def test_sends_formatted_plain_text_and_html_assignment_email(self):
@@ -114,11 +115,14 @@ class MasterCycleEmailTests(SimpleTestCase):
         self.assertIn('Team: Trivia <Team>', email.body)
         self.assertIn('Sprint cycle: Summer Sprint', email.body)
         self.assertIn('Schedule: 2026-08-24 through 2026-09-04', email.body)
+        self.assertIn('https://himanshuk-dev.github.io/daily-trivia/', email.body)
         self.assertEqual(len(email.alternatives), 1)
         html, mime_type = email.alternatives[0]
         self.assertEqual(mime_type, 'text/html')
         self.assertIn('Alex &amp; Sam', html)
         self.assertIn('Trivia &lt;Team&gt;', html)
+        self.assertIn('href="https://himanshuk-dev.github.io/daily-trivia/"', html)
+        self.assertIn('Open Daily Trivia', html)
 
 
 @override_settings(

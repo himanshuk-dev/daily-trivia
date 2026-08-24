@@ -27,6 +27,7 @@ def send_master_cycle_assigned_email(*, recipient: str, master_name: str, team_n
     safe_cycle_name = escape(cycle_name)
     safe_start_date = escape(str(start_date))
     safe_end_date = escape(str(end_date))
+    safe_app_url = escape(settings.PUBLIC_APP_URL)
     send_transactional_email(
         recipient=recipient,
         subject=f'You are the trivia master for {subject_cycle_name}',
@@ -37,7 +38,8 @@ def send_master_cycle_assigned_email(*, recipient: str, master_name: str, team_n
             f'Sprint cycle: {cycle_name}\n'
             f'Schedule: {start_date} through {end_date}\n\n'
             'Next step\n'
-            'Sign in to Daily Trivia to create and manage questions for your team.\n\n'
+            'Sign in to Daily Trivia to create and manage questions for your team:\n'
+            f'{settings.PUBLIC_APP_URL}\n\n'
             'Daily Trivia'
         ),
         html_message=(
@@ -51,6 +53,9 @@ def send_master_cycle_assigned_email(*, recipient: str, master_name: str, team_n
             '</ul>'
             '<h2 style="font-size:18px;margin:24px 0 12px">Next step</h2>'
             '<p>Sign in to Daily Trivia to create and manage questions for your team.</p>'
+            f'<p><a href="{safe_app_url}" style="display:inline-block;padding:12px 18px;'
+            'background:#5b21b6;color:#ffffff;text-decoration:none;border-radius:6px;'
+            'font-weight:700">Open Daily Trivia</a></p>'
             '<p>Daily Trivia</p>'
         ),
     )
