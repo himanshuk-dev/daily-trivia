@@ -17,6 +17,7 @@ from .trivia import (
     master_cycle_create_trivia,
     master_cycle_generate_trivia,
     master_cycle_list_create,
+    master_cycle_manage,
     trivia_session_answers,
     trivia_session_evaluate,
     trivia_session_publish,

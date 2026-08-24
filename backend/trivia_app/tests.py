@@ -15,7 +15,7 @@ from rest_framework.test import APITestCase
 
 from trivia_app.models import EmailLoginCode, MasterCycle, Notification, Team, TeamMembership, TrophyAward, TriviaQuestion, TriviaSession, UserAnswer
 from trivia_app.services.ai_generator import GROQ_BASE_URL, GeneratedQuestion, TriviaGenerator
-from trivia_app.services.email_sender import send_login_code_email
+from trivia_app.services.email_sender import send_login_code_email, send_master_cycle_assigned_email
 
 
 class TriviaGeneratorTests(SimpleTestCase):
@@ -97,6 +97,39 @@ class BrevoEmailDeliveryTests(SimpleTestCase):
             },
             timeout=10,
         )
+
+
+@override_settings(
+    EMAIL_DELIVERY_PROVIDER='smtp',
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    DEFAULT_FROM_EMAIL='noreply@example.com',
+    PUBLIC_APP_URL='https://himanshuk-dev.github.io/daily-trivia/',
+)
+class MasterCycleEmailTests(SimpleTestCase):
+    def test_sends_formatted_plain_text_and_html_assignment_email(self):
+        send_master_cycle_assigned_email(
+            recipient='master@example.com',
+            master_name='Alex & Sam',
+            team_name='Trivia <Team>',
+            cycle_name='Summer Sprint',
+            start_date='2026-08-24',
+            end_date='2026-09-04',
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.subject, 'You are the trivia master for Summer Sprint')
+        self.assertIn('Team: Trivia <Team>', email.body)
+        self.assertIn('Sprint cycle: Summer Sprint', email.body)
+        self.assertIn('Schedule: 2026-08-24 through 2026-09-04', email.body)
+        self.assertIn('https://himanshuk-dev.github.io/daily-trivia/', email.body)
+        self.assertEqual(len(email.alternatives), 1)
+        html, mime_type = email.alternatives[0]
+        self.assertEqual(mime_type, 'text/html')
+        self.assertIn('Alex &amp; Sam', html)
+        self.assertIn('Trivia &lt;Team&gt;', html)
+        self.assertIn('href="https://himanshuk-dev.github.io/daily-trivia/"', html)
+        self.assertIn('Open Daily Trivia', html)
 
 
 @override_settings(
@@ -213,6 +246,110 @@ class TeamTriviaWorkflowTests(APITestCase):
     def authenticate(self, user):
         token, _ = Token.objects.get_or_create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    @patch('trivia_app.api.trivia.send_master_cycle_assigned_email')
+    def test_team_and_platform_admins_can_edit_and_delete_master_cycles(self, send_assignment_email):
+        team_admin = User.objects.create_user(username='team-admin', email='team-admin@example.com')
+        team = Team.objects.create(name='Cycle Team', slug='cycle-team', created_by=self.admin)
+        TeamMembership.objects.create(
+            team=team,
+            user=team_admin,
+            role=TeamMembership.Role.TEAM_ADMIN,
+            status=TeamMembership.Status.APPROVED,
+        )
+        for user in [self.master, self.player]:
+            TeamMembership.objects.create(
+                team=team,
+                user=user,
+                status=TeamMembership.Status.APPROVED,
+            )
+
+        self.authenticate(team_admin)
+        response = self.client.post('/api/master-cycles/', {
+            'team': team.id,
+            'master_username': self.master.username,
+            'topic': 'Original cycle',
+            'start_date': '2026-08-24',
+            'end_date': '2026-09-04',
+            'status': MasterCycle.Status.ACTIVE,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        cycle = MasterCycle.objects.get(pk=response.data['id'])
+        send_assignment_email.assert_called_once_with(
+            recipient=self.master.email,
+            master_name=self.master.username,
+            team_name=team.name,
+            cycle_name='Original cycle',
+            start_date=cycle.start_date,
+            end_date=cycle.end_date,
+        )
+        self.assertTrue(Notification.objects.filter(
+            user=self.player,
+            team=team,
+            message='New sprint cycle: Original cycle · Master: master · 2026-08-24 to 2026-09-04',
+        ).exists())
+        self.assertFalse(Notification.objects.filter(
+            user=team_admin,
+            message__startswith='New sprint cycle:',
+        ).exists())
+
+        self.authenticate(self.player)
+        response = self.client.patch(
+            f'/api/master-cycles/{cycle.id}/', {'topic': 'Unauthorized'}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.authenticate(team_admin)
+        response = self.client.patch(f'/api/master-cycles/{cycle.id}/', {
+            'master_username': team_admin.username,
+            'topic': 'Renamed cycle',
+            'start_date': '2026-08-25',
+            'end_date': '2026-09-05',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['topic'], 'Renamed cycle')
+        self.assertEqual(response.data['master_name'], team_admin.username)
+        self.assertEqual(response.data['start_date'], '2026-08-25')
+        self.assertEqual(response.data['end_date'], '2026-09-05')
+        update_notification = Notification.objects.filter(
+            user=self.player,
+            team=team,
+            message__startswith='Sprint cycle updated (Renamed cycle):',
+        ).get()
+        self.assertIn('name: Original cycle → Renamed cycle', update_notification.message)
+        self.assertIn('master: master → team-admin', update_notification.message)
+        self.assertIn('start date: 2026-08-24 → 2026-08-25', update_notification.message)
+        self.assertIn('end date: 2026-09-04 → 2026-09-05', update_notification.message)
+
+        response = self.client.patch(
+            f'/api/master-cycles/{cycle.id}/', {'master_username': self.player.username}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('master_username', response.data)
+
+        response = self.client.patch(
+            f'/api/master-cycles/{cycle.id}/', {'end_date': '2026-08-20'}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('end_date', response.data)
+
+        cycle.status = MasterCycle.Status.CLOSED
+        cycle.save(update_fields=['status'])
+        response = self.client.patch(
+            f'/api/master-cycles/{cycle.id}/', {'topic': 'Closed cycle edit'}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            self.client.delete(f'/api/master-cycles/{cycle.id}/').status_code,
+            status.HTTP_409_CONFLICT,
+        )
+
+        cycle.status = MasterCycle.Status.ACTIVE
+        cycle.save(update_fields=['status'])
+        self.authenticate(self.admin)
+        response = self.client.delete(f'/api/master-cycles/{cycle.id}/')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(MasterCycle.objects.filter(pk=cycle.id).exists())
 
     def test_platform_admin_can_edit_and_delete_team(self):
         self.authenticate(self.admin)
